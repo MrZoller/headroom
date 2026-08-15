@@ -14,8 +14,12 @@ concurrency:
 jobs:
   review:
     # same-repo PRs only: fork PRs receive no secrets, so the job would
-    # fail red on every external contribution (headroom is public)
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    # fail red on every external contribution (headroom is public).
+    # Dependabot-triggered runs are the same class despite being
+    # same-repo (Actions secrets withheld, read-only token) — gate on the
+    # run's actor, not the PR author, so a human pushing to a dependabot
+    # branch still gets a review (that run carries normal secrets)
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

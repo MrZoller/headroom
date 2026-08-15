@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T1",
-  "branch": "factory/t1-matrix-catalog-order",
+  "current_task": null,
+  "branch": null,
   "pr": null,
   "hold": false,
-  "updated": "2026-08-15T13:48:29Z"
+  "updated": "2026-08-15T14:16:13Z"
 }
