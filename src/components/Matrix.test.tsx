@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { useConfig, DEFAULT_CONFIG } from '@/store/config';
-import { DEVICES, getModel } from '@/data/catalog';
+import { comparisonGrid, DEVICES, getModel } from '@/data/catalog';
 import { colors, magnitudeRamp } from '@/design/tokens';
 import { atFullGrid, boundGridByDefault } from '@/test/grid';
 import { TABBABLE } from '@/test/tabbable';
@@ -237,6 +237,9 @@ describe('the comparison grid puts a cell’s value where it can be read', () =>
 
     const full = readout()!;
     const brief = briefReadout()!;
+    const { models, devices } = comparisonGrid();
+    const model = models[0];
+    const device = devices[0];
 
     /*
      * The model goes and the machine stays, which is "drop what is sticky, keep what scrolls": the
@@ -244,13 +247,14 @@ describe('the comparison grid puts a cell’s value where it can be read', () =>
      * headings sit at the top of a 35-row grid. Dropping both left a reader in a lower row with
      * `69% of the ceiling free` and nothing anywhere saying which machine (found in review).
      */
-    expect(full).toMatch(/^Qwen3 8B on GeForce RTX 5090/);
-    expect(brief).not.toContain('Qwen3 8B');
-    expect(brief).toContain('RTX 5090');
-    // The figure itself, which is the payload both forms carry. 70% since #182 took Qwen3 8B's
-    // host-resident input table off the card — an untied 151,936 x 4,096 table is 7.6% of the file.
-    expect(brief).toContain('70% of the ceiling free');
-    expect(full).toContain('70% of the ceiling free');
+    expect(full.startsWith(`${model.name} on ${device.name}`)).toBe(true);
+    expect(brief).not.toContain(model.name);
+    const deviceHeading = matrix().querySelector('thead th:nth-child(2) span[title]')!.textContent!;
+    expect(brief).toContain(deviceHeading);
+    // The figure itself, which is the payload both forms carry, whatever the first catalog row is.
+    const figure = full.match(/\d+%/)?.[0];
+    expect(figure, 'the first cell has no fit figure').toBeDefined();
+    expect(brief).toContain(figure);
     /*
      * Materially shorter, which is the property the reservation depends on — the geometry itself is
      * `e2e/reflow.spec.ts`, since jsdom reports every height as 0. The margin is smaller than it was
@@ -265,7 +269,10 @@ describe('the comparison grid puts a cell’s value where it can be read', () =>
     render(<App />);
     // MXFP4 is expert-only, so a dense row is scored at a substitute — the one part of the preamble
     // that is not on an axis, and the one a figure derived from it has to keep at every width.
-    await user.hover(cells()[0]);
+    const grid = comparisonGrid();
+    const denseRow = grid.models.findIndex((model) => model.expertParams === 0);
+    expect(denseRow, 'the bounded fixture has no dense model').toBeGreaterThanOrEqual(0);
+    await user.hover(cells()[denseRow * grid.devices.length]);
 
     expect(readout()).toMatch(/at Q4_K_M/);
     expect(briefReadout()).toMatch(/at Q4_K_M/);
@@ -276,7 +283,8 @@ describe('the comparison grid puts a cell’s value where it can be read', () =>
     // The accessible name is the one channel with no axis headings beside it, so the preamble the
     // readout may drop is exactly what a screen-reader user has instead of them. Never abbreviated.
     const label = cells()[0].getAttribute('aria-label') ?? '';
-    expect(label).toMatch(/^Qwen3 8B on GeForce RTX 5090/);
+    const { models, devices } = comparisonGrid();
+    expect(label.startsWith(`${models[0].name} on ${devices[0].name}`)).toBe(true);
   });
 
   /**
