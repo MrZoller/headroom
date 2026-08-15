@@ -104,9 +104,17 @@ test('filling it moves neither the grid above nor the legend below', async ({ pa
 test('a whole sentence wraps at 320px instead of scrolling the page', async ({ page }) => {
   await page.setViewportSize(NARROW);
   await page.goto('/');
-  // The last cell: the longest device name in the catalog, and a row far enough down the popularity
-  // sort to have a long model name — the longest sentence the grid can produce.
-  const cell = grid(page).locator('td button').last();
+  // Measure the longest sentence the current catalog produces instead of assuming popularity order
+  // puts a suitably long model in the last row.
+  const cells = grid(page).locator('td button');
+  const labels = await cells.evaluateAll((buttons) =>
+    buttons.map((button) => button.ariaLabel ?? '')
+  );
+  const longest = labels.reduce(
+    (best, label, index) => (label.length > labels[best].length ? index : best),
+    0
+  );
+  const cell = cells.nth(longest);
   await cell.focus();
   await expect(readout(page)).toContainText(/ on .+:/);
 
