@@ -5,7 +5,7 @@
   "plan_approved": false,
   "current_task": "T2",
   "branch": "factory/t2-gpt-oss-catalog",
-  "pr": null,
-  "hold": false,
-  "updated": "2026-08-15T18:50:25Z"
+  "pr": 218,
+  "hold": true,
+  "updated": "2026-08-15T19:28:42Z"
 }
