@@ -2104,10 +2104,27 @@ ceiling)` keeps an over-budget stack on screen, which is right and stays. What i
 
 **Catalog**
 
-- **`safetensors.total` counts tensor _elements_, not parameters.** True for FP8, false for MXFP4:
-  gpt-oss-120b's `U8` count is exactly 33/32 of logical expert params, the extra being one scale
-  byte per 32-value block. The ratio guard is tight to 0.5% on purpose — a loose band would also
-  admit a uniformly-int8 model and silently discard its entire dense half.
+- **`safetensors.total` counts tensor _elements_, not parameters, and its derived dtype summary is
+  not revision-stable.** True for FP8, false for MXFP4. The unchanged gpt-oss-120b weight revision
+  uploaded on 4 August 2025 reported `U8` as 33/32 of logical experts in the 3 August 2026 refresh,
+  then as exactly 1x two days later; gpt-oss-20b still reports 33/32. Pinning the Git revision did
+  not pin that server-computed interpretation.
+
+  Accepting both ratios by themselves would weaken the guard enough to admit an ordinary UINT8
+  checkpoint and silently discard its dense parameters. The generator now reads every pinned shard
+  header for an MXFP4 seed and proves the actual layout instead: each layer has `gate_up_proj` and
+  `down_proj` `U8` block/scale pairs; each block's final 16 bytes hold 32 FP4 values; its preceding
+  dimensions exactly match one scale byte per block; no other packed tensor is present; and the
+  reconstructed count equals the analytic routed-expert count. Only then may the API use either
+  observed 1x or 33/32 summary. For gpt-oss-120b that is 57,330,892,800 block bytes plus
+  3,583,180,800 scale bytes representing 114,661,785,600 logical expert parameters, alongside
+  2,167,371,072 BF16 parameters. The source evidence is the pinned
+  [`model.safetensors.index.json`](https://huggingface.co/openai/gpt-oss-120b/blob/8c0580383cb1e6a9157669336ade6797a024cd9a/model.safetensors.index.json),
+  its shard headers, OpenAI's
+  [`weights.py`](https://github.com/openai/gpt-oss/blob/243a1b02767da73bd2e3975be250afa801635866/gpt_oss/torch/weights.py),
+  and the repository's unchanged [commit
+  history](https://huggingface.co/api/models/openai/gpt-oss-120b/commits/main).
+
 - **Multi-Token Prediction modules inflate reported totals** (DeepSeek V3/R1 by ~13B, GLM-4.5-Air
   by ~4B) and inference never loads them. Detected via `num_nextn_predict_layers` and _refused_,
   not estimated; the seed list carries the published figure with a written reason.

@@ -7,12 +7,14 @@ import {
   deriveAttention,
   deriveLayerWindows,
   deriveMoe,
+  deriveTotalParams,
   duplicatedOutputParams,
   publishedActiveParams,
   reconcileActiveParams,
   seededIds,
   staleRefusals,
   unseededCandidates,
+  validateMxfp4ExpertLayout,
 } from './build-catalog';
 
 /**
@@ -1333,6 +1335,100 @@ describe('the expert count', () => {
     expect(() => deriveMoe('hypothetical/half-stated', halfStated, 48)).toThrowError(
       /partial MoE config/
     );
+  });
+});
+
+/**
+ * Exact layer-0 shapes from the pinned gpt-oss-120b shard header:
+ * https://huggingface.co/openai/gpt-oss-120b/blob/8c0580383cb1e6a9157669336ade6797a024cd9a/model-00009-of-00014.safetensors
+ */
+describe('MXFP4 expert layout validation', () => {
+  const valid = () => ({
+    'model.layers.0.mlp.experts.gate_up_proj_blocks': {
+      dtype: 'U8',
+      shape: [128, 5760, 90, 16],
+    },
+    'model.layers.0.mlp.experts.gate_up_proj_scales': {
+      dtype: 'U8',
+      shape: [128, 5760, 90],
+    },
+    'model.layers.0.mlp.experts.down_proj_blocks': {
+      dtype: 'U8',
+      shape: [128, 2880, 90, 16],
+    },
+    'model.layers.0.mlp.experts.down_proj_scales': {
+      dtype: 'U8',
+      shape: [128, 2880, 90],
+    },
+    'model.layers.0.self_attn.q_proj.weight': { dtype: 'BF16', shape: [4096, 2880] },
+  });
+  const expertParams = 128 * (5760 + 2880) * 90 * 16 * 2;
+
+  it('proves logical expert parameters from paired blocks and scales', () => {
+    expect(validateMxfp4ExpertLayout('openai/gpt-oss-120b', valid(), 1, expertParams)).toBe(
+      expertParams
+    );
+  });
+
+  it('refuses an incomplete block/scale pair', () => {
+    const tensors: Record<string, { dtype?: string; shape?: number[] }> = valid();
+    delete tensors['model.layers.0.mlp.experts.down_proj_scales'];
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', tensors, 1, expertParams)
+    ).toThrow(/missing blocks or scales/);
+  });
+
+  it('refuses a changed packed width or scale shape', () => {
+    const tensors = valid();
+    tensors['model.layers.0.mlp.experts.gate_up_proj_blocks'].shape = [128, 5760, 90, 8];
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', tensors, 1, expertParams)
+    ).toThrow(/does not pair 16-byte blocks with one scale each/);
+  });
+
+  it('refuses an ordinary U8 tensor outside the known expert pairs', () => {
+    const tensors: Record<string, { dtype?: string; shape?: number[] }> = valid();
+    tensors['model.embed_tokens.weight'] = { dtype: 'U8', shape: [201088, 2880] };
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', tensors, 1, expertParams)
+    ).toThrow(/embed_tokens\.weight is not a supported MXFP4 expert block or scale/);
+  });
+
+  it('refuses when the headers disagree with the analytic expert count', () => {
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', valid(), 1, expertParams + 1)
+    ).toThrow(/headers prove .* expected/);
+  });
+
+  it('refuses shapes whose element count cannot be represented exactly', () => {
+    const tensors = valid();
+    tensors['model.layers.0.mlp.experts.gate_up_proj_blocks'].shape = [Number.MAX_SAFE_INTEGER, 16];
+    tensors['model.layers.0.mlp.experts.gate_up_proj_scales'].shape = [Number.MAX_SAFE_INTEGER];
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', tensors, 1, expertParams)
+    ).toThrow(/unsafe shape/);
+  });
+
+  it.each([1, 33 / 32])('accepts the observed %.5fx Hub summary after proof', (ratio) => {
+    const denseParams = 1234;
+    const api = {
+      id: 'openai/gpt-oss-120b',
+      safetensors: {
+        parameters: { U8: expertParams * ratio, BF16: denseParams },
+        total: expertParams * ratio + denseParams,
+      },
+    };
+    expect(deriveTotalParams(api.id, api, expertParams, expertParams)).toBe(
+      expertParams + denseParams
+    );
+  });
+
+  it('does not accept a familiar aggregate ratio without header proof', () => {
+    const api = {
+      id: 'hypothetical/uint8-moe',
+      safetensors: { parameters: { U8: expertParams }, total: expertParams },
+    };
+    expect(() => deriveTotalParams(api.id, api, expertParams)).toThrow(/headers do not prove/);
   });
 });
 
