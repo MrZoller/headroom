@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": null,
-  "branch": null,
+  "current_task": "T3",
+  "branch": "factory/t3-harden-catalog-refresh",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-15T22:45:46Z"
+  "updated": "2026-08-15T22:49:22Z"
 }
