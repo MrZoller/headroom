@@ -13,7 +13,9 @@ concurrency:
 
 jobs:
   review:
-    if: ${{ !github.event.pull_request.draft }}
+    # same-repo PRs only: fork PRs receive no secrets, so the job would
+    # fail red on every external contribution (headroom is public)
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
