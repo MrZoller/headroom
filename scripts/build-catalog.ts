@@ -704,7 +704,7 @@ export const NOT_SEEDED: Readonly<Record<string, Refusal>> = {
 // Shapes we read from Hugging Face
 // ---------------------------------------------------------------------------
 
-interface HfApiModel {
+export interface HfApiModel {
   id: string;
   /** Commit the API resolved. Returned only when explicitly requested via `expand[]=sha`. */
   sha?: string;
@@ -1475,9 +1475,9 @@ function deriveWindows(
  * the reconstruction path, fail the MXFP4-specific 33/32 ratio guard, and — since any seed
  * failure now blocks the write — make such a model unaddable rather than merely unusual.
  *
- * `U8` stays, because that is how MXFP4 stores its blocks. A repository that genuinely holds
- * one parameter per unsigned byte will trip the ratio guard and land in the override path,
- * which is the loud failure this file prefers to a silent rebuild.
+ * `U8` stays, because that is how MXFP4 stores its blocks and scales. The API's derived U8
+ * summary is not itself proof of packing; the pinned shard headers are validated below before
+ * this reconstruction path accepts either summary convention Hugging Face currently publishes.
  */
 const PACKED_DTYPES = new Set(['U8', 'UINT8', 'U4', 'I4']);
 
@@ -1493,7 +1493,12 @@ const PACKED_DTYPES = new Set(['U8', 'UINT8', 'U4', 'I4']);
  * For packed formats the count is rebuilt as "everything stored unpacked, plus the analytic
  * expert count", and the packed figure is used to check that assumption rather than to trust it.
  */
-function deriveTotalParams(id: string, api: HfApiModel, expertParams: number): number {
+export function deriveTotalParams(
+  id: string,
+  api: HfApiModel,
+  expertParams: number,
+  validatedMxfp4ExpertParams?: number
+): number {
   const byDtype = api.safetensors?.parameters ?? {};
   const total = api.safetensors?.total;
 
@@ -1515,21 +1520,29 @@ function deriveTotalParams(id: string, api: HfApiModel, expertParams: number): n
     );
   }
 
+  if (validatedMxfp4ExpertParams !== expertParams) {
+    throw new DerivationError(
+      `${id}: stores packed tensors, but its pinned shard headers do not prove that all ` +
+        `${expertParams} routed-expert parameters use the supported MXFP4 block/scale layout. ` +
+        'Add an override with a reason rather than trusting the aggregate dtype count.'
+    );
+  }
+
   /**
-   * MXFP4 carries one scale byte per 32 values, so packed elements are 33/32 of logical —
-   * exactly, not approximately. The band is tight on purpose: a loose one would also admit a
-   * model quantized *uniformly* to int8 whenever experts happen to be ~91%+ of it, and the
-   * rebuild below would then throw away every non-expert parameter. That is a several-GB
-   * understatement presented as a precise figure, which is the exact failure this file exists
-   * to prevent. Anything not MXFP4-shaped should land in the override path instead.
+   * Hugging Face currently publishes two summaries for the same MXFP4 layout: gpt-oss-20b's U8
+   * count includes one scale element per 32 values (33/32), while gpt-oss-120b's normalises the
+   * packed blocks to their logical parameter count and omits scales (1). Neither summary is a
+   * packing contract, so both are admitted only after the pinned headers proved the exact layout.
+   * The tight bands still catch a changed aggregate before the reconstruction can discard dense
+   * parameters under a newly introduced convention.
    */
   const ratio = packed / expertParams;
-  const expected = 33 / 32;
-  if (Math.abs(ratio - expected) / expected > 0.005) {
+  const expectedRatios = [1, 33 / 32];
+  if (!expectedRatios.some((expected) => Math.abs(ratio - expected) / expected <= 0.005)) {
     throw new DerivationError(
       `${id}: packed element count is ${ratio.toFixed(5)}x the analytic expert count, ` +
-        `expected ${expected.toFixed(5)} for MXFP4. Either the expert shape is wrong or this ` +
-        'is a different packing — add an override with a reason rather than trusting this.'
+        `expected 1.00000 or ${(33 / 32).toFixed(5)} for a header-validated MXFP4 repository. ` +
+        'The summary convention changed again — inspect it rather than trusting this.'
     );
   }
 
@@ -1876,6 +1889,96 @@ interface StackShape {
    * decode reads that one table every step, which is what being tied means.
    */
   duplicatedOutputParams: number;
+  /** Logical routed-expert parameters proved by the pinned MXFP4 block/scale headers. */
+  validatedMxfp4ExpertParams?: number;
+}
+
+type TensorHeader = { dtype?: string; shape?: number[] };
+
+/**
+ * Prove the one MXFP4 layout the generator knows how to reconstruct.
+ *
+ * OpenAI's gpt-oss checkpoints store each expert projection as `*_blocks` U8 tensors whose
+ * final 16 bytes hold 32 FP4 values, paired with one U8 `*_scales` element per block. Requiring
+ * every packed tensor to belong to one of those pairs is what keeps an ordinary UINT8 model from
+ * entering the expert reconstruction path merely because its aggregate count has a familiar ratio.
+ */
+export function validateMxfp4ExpertLayout(
+  id: string,
+  tensors: Record<string, TensorHeader>,
+  layers: number,
+  expertParams: number
+): number {
+  const pattern = /^model\.layers\.(\d+)\.mlp\.experts\.(gate_up_proj|down_proj)_(blocks|scales)$/;
+  const packed = Object.entries(tensors).filter(
+    ([, tensor]) => tensor.dtype && PACKED_DTYPES.has(tensor.dtype.toUpperCase())
+  );
+  const matched = new Map<string, { blocks?: number[]; scales?: number[] }>();
+
+  for (const [name, tensor] of packed) {
+    const match = pattern.exec(name);
+    if (!match || tensor.dtype?.toUpperCase() !== 'U8' || tensor.shape === undefined) {
+      throw new DerivationError(
+        `${id}: packed tensor ${name} is not a supported MXFP4 expert block or scale`
+      );
+    }
+    const layer = Number(match[1]);
+    if (!Number.isInteger(layer) || layer < 0 || layer >= layers) {
+      throw new DerivationError(`${id}: MXFP4 tensor ${name} names an out-of-range layer`);
+    }
+    const key = `${layer}:${match[2]}`;
+    const pair = matched.get(key) ?? {};
+    const kind = match[3] as 'blocks' | 'scales';
+    if (pair[kind] !== undefined) {
+      throw new DerivationError(`${id}: duplicate MXFP4 ${kind} tensor for ${key}`);
+    }
+    pair[kind] = tensor.shape;
+    matched.set(key, pair);
+  }
+
+  const expectedPairs = layers * 2;
+  if (matched.size !== expectedPairs) {
+    throw new DerivationError(
+      `${id}: found ${matched.size} MXFP4 expert projection pairs, expected ${expectedPairs}`
+    );
+  }
+
+  let logical = 0;
+  for (let layer = 0; layer < layers; layer += 1) {
+    for (const projection of ['gate_up_proj', 'down_proj'] as const) {
+      const key = `${layer}:${projection}`;
+      const pair = matched.get(key);
+      if (!pair?.blocks || !pair.scales) {
+        throw new DerivationError(
+          `${id}: MXFP4 expert projection ${key} is missing blocks or scales`
+        );
+      }
+      const blockShape = pair.blocks;
+      const scaleShape = pair.scales;
+      if (
+        blockShape.at(-1) !== 16 ||
+        blockShape.length !== scaleShape.length + 1 ||
+        !scaleShape.every((dimension, index) => blockShape[index] === dimension)
+      ) {
+        throw new DerivationError(
+          `${id}: MXFP4 expert projection ${key} does not pair 16-byte blocks with one scale each`
+        );
+      }
+      const blockBytes = blockShape.reduce((product, dimension) => product * dimension, 1);
+      const scales = scaleShape.reduce((product, dimension) => product * dimension, 1);
+      if (blockBytes * 2 !== scales * 32) {
+        throw new DerivationError(`${id}: MXFP4 expert projection ${key} has inconsistent packing`);
+      }
+      logical += blockBytes * 2;
+    }
+  }
+
+  if (logical !== expertParams) {
+    throw new DerivationError(
+      `${id}: MXFP4 headers prove ${logical} expert parameters, expected ${expertParams}`
+    );
+  }
+  return logical;
 }
 
 /** Names an untied output projection is stored under, across architectures. */
@@ -1945,10 +2048,22 @@ async function deriveStackShape(
   id: string,
   revision: string,
   declaredTied: boolean | undefined,
-  embeddingParams: number
+  embeddingParams: number,
+  layers: number,
+  expertParams: number,
+  quantMethod: unknown
 ): Promise<StackShape> {
   const weightMap = await fetchTensorMap(id, revision);
   const names = Object.keys(weightMap);
+
+  let validatedMxfp4ExpertParams: number | undefined;
+  if (quantMethod === 'mxfp4') {
+    const tensors: Record<string, TensorHeader> = {};
+    for (const shard of new Set(Object.values(weightMap))) {
+      Object.assign(tensors, await fetchSafetensorsHeader(id, revision, shard));
+    }
+    validatedMxfp4ExpertParams = validateMxfp4ExpertLayout(id, tensors, layers, expertParams);
+  }
 
   const unknown = names.filter((name) => classifyTensor(name) === 'unknown');
   if (unknown.length > 0) {
@@ -2010,7 +2125,12 @@ async function deriveStackShape(
     ...new Set(names.filter((n) => classifyTensor(n) === 'other').map((n) => weightMap[n])),
   ];
   if (otherShards.length === 0) {
-    return { tiedEmbeddings, nonLanguageParams: 0, duplicatedOutputParams: duplicated };
+    return {
+      tiedEmbeddings,
+      nonLanguageParams: 0,
+      duplicatedOutputParams: duplicated,
+      validatedMxfp4ExpertParams,
+    };
   }
 
   let nonLanguageParams = 0;
@@ -2039,7 +2159,12 @@ async function deriveStackShape(
     }
   }
 
-  return { tiedEmbeddings, nonLanguageParams, duplicatedOutputParams: duplicated };
+  return {
+    tiedEmbeddings,
+    nonLanguageParams,
+    duplicatedOutputParams: duplicated,
+    validatedMxfp4ExpertParams,
+  };
 }
 
 async function buildModel(seed: Seed) {
@@ -2101,6 +2226,8 @@ async function buildModel(seed: Seed) {
 
   const moe = deriveMoe(seed.id, config, layers);
   const expertParams = moe?.expertParams ?? 0;
+  const quantMethod = (config.quantization_config as Record<string, unknown> | undefined)
+    ?.quant_method;
 
   /**
    * Models carrying a Multi-Token Prediction module report it in their safetensors index even
@@ -2141,7 +2268,10 @@ async function buildModel(seed: Seed) {
     seed.id,
     revision,
     typeof config.tie_word_embeddings === 'boolean' ? config.tie_word_embeddings : undefined,
-    embeddingParams
+    embeddingParams,
+    layers,
+    expertParams,
+    quantMethod
   );
 
   /**
@@ -2151,7 +2281,8 @@ async function buildModel(seed: Seed) {
    */
   const totalParams =
     seed.overrides?.totalParams ??
-    deriveTotalParams(seed.id, api, expertParams) - stack.duplicatedOutputParams;
+    deriveTotalParams(seed.id, api, expertParams, stack.validatedMxfp4ExpertParams) -
+      stack.duplicatedOutputParams;
 
   if (expertParams >= totalParams) {
     throw new DerivationError(
@@ -2192,9 +2323,6 @@ async function buildModel(seed: Seed) {
     0,
     denseParams - stack.nonLanguageParams - (stack.tiedEmbeddings ? 0 : embeddingParams)
   );
-
-  const quantMethod = (config.quantization_config as Record<string, unknown> | undefined)
-    ?.quant_method;
 
   // A mirror's own traffic is not the model's. Weights still come from the mirror, so only
   // the popularity figures are re-fetched, and only when a seed names a canonical repo.
