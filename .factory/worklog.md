@@ -26,3 +26,6 @@ at the bottom.
 - PR #213 squash-merged at head `8ccbcfd6a6d927011a66ebb1724a39f31091a113`; its branch was deleted and local `main` synced.
 - Both CI workflow runs passed (build and browser checks). There were no review comments or threads. Codex has no activity on the repository's recent PRs and the Claude review workflow is not configured, so neither was a merge condition.
 - Marked T1 complete and cleared its recorded task, branch, PR, and hold state.
+
+## 2026-08-15 — out-of-band CI fix (#217)
+Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml: Dependabot-triggered runs get fork-class secret restrictions, so the job now skips on `github.actor == dependabot[bot]` instead of failing red on dep bumps. Rode the T1 ship/log/complete bookkeeping to origin (squash 31e93e9). Verification: `ruby -ryaml -e "YAML.load_file('.github/workflows/claude-code-review.yml')"`.
