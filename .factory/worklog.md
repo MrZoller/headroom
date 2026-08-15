@@ -45,3 +45,10 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - PR #218 was manually squash-merged at head `d8ee631dd9879432e0a62375a3d4732c91357326`; local `main` was synced to merge commit `b1815f2`.
 - Both CI workflow runs passed (build and browser checks), the Claude review workflow completed successfully, and there are no PR comments, formal reviews, or review threads. No late-merge marker exists for this PR.
 - Marked T2 complete and cleared its recorded task, branch, PR, and hold state.
+
+## 2026-08-15 — T3 catalog refresh publication hardening
+
+- Changed the refresh workflow to fetch current `origin/main`, preserve history only while an open refresh PR exists, rebuild stale no-PR state with an explicit force-with-lease, and reject any pre-push three-dot diff other than `src/data/models.generated.json`. Documented the branch lifecycle and two-dot/three-dot distinction in `docs/ROADMAP.md`.
+- Acceptance evidence: workflow-dispatch run [31913354836](https://github.com/MrZoller/headroom/actions/runs/31913354836) completed successfully under read-only repository defaults and created catalog PR [#219](https://github.com/MrZoller/headroom/pull/219). The resulting `catalog/refresh` branch is one commit atop current `main`; `git diff --name-only origin/main...origin/catalog/refresh` returned only `src/data/models.generated.json`. Recorded the result on issue #193 and closed superseded PR #211.
+- Verification: `npm run lint && npm run format:check && npm test && npm run build && npm run test:e2e` passed (41 files / 1,504 unit tests, 199 prerendered routes, 170 browser tests). The local correctness and security/tests panel and adversarial verifier returned CLEAR.
+- Opened PR #220 at head `1cc9b2e0c87d96bbd54473f57b9c48e745638400`. First shepherd pass found build and browser CI, Claude review, and Codex review still pending; there are no comments, threads, labels, or hold. Task remains in review for the next shepherd pass.
