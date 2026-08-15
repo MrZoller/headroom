@@ -1400,6 +1400,15 @@ describe('MXFP4 expert layout validation', () => {
     ).toThrow(/headers prove .* expected/);
   });
 
+  it('refuses shapes whose element count cannot be represented exactly', () => {
+    const tensors = valid();
+    tensors['model.layers.0.mlp.experts.gate_up_proj_blocks'].shape = [Number.MAX_SAFE_INTEGER, 16];
+    tensors['model.layers.0.mlp.experts.gate_up_proj_scales'].shape = [Number.MAX_SAFE_INTEGER];
+    expect(() =>
+      validateMxfp4ExpertLayout('openai/gpt-oss-120b', tensors, 1, expertParams)
+    ).toThrow(/unsafe shape/);
+  });
+
   it.each([1, 33 / 32])('accepts the observed %.5fx Hub summary after proof', (ratio) => {
     const denseParams = 1234;
     const api = {

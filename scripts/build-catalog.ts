@@ -1909,6 +1909,20 @@ export function validateMxfp4ExpertLayout(
   layers: number,
   expertParams: number
 ): number {
+  const elements = (name: string, shape: number[]) => {
+    let product = 1;
+    for (const dimension of shape) {
+      if (
+        !Number.isSafeInteger(dimension) ||
+        dimension <= 0 ||
+        product > Number.MAX_SAFE_INTEGER / dimension
+      ) {
+        throw new DerivationError(`${id}: MXFP4 tensor ${name} has an unsafe shape`);
+      }
+      product *= dimension;
+    }
+    return product;
+  };
   const pattern = /^model\.layers\.(\d+)\.mlp\.experts\.(gate_up_proj|down_proj)_(blocks|scales)$/;
   const packed = Object.entries(tensors).filter(
     ([, tensor]) => tensor.dtype && PACKED_DTYPES.has(tensor.dtype.toUpperCase())
@@ -1964,8 +1978,8 @@ export function validateMxfp4ExpertLayout(
           `${id}: MXFP4 expert projection ${key} does not pair 16-byte blocks with one scale each`
         );
       }
-      const blockBytes = blockShape.reduce((product, dimension) => product * dimension, 1);
-      const scales = scaleShape.reduce((product, dimension) => product * dimension, 1);
+      const blockBytes = elements(`${key}_blocks`, blockShape);
+      const scales = elements(`${key}_scales`, scaleShape);
       if (blockBytes * 2 !== scales * 32) {
         throw new DerivationError(`${id}: MXFP4 expert projection ${key} has inconsistent packing`);
       }
