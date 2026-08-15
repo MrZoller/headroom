@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T2",
-  "branch": "factory/t2-gpt-oss-catalog",
-  "pr": 218,
-  "hold": true,
-  "updated": "2026-08-15T19:28:42Z"
+  "current_task": null,
+  "branch": null,
+  "pr": null,
+  "hold": false,
+  "updated": "2026-08-15T22:45:46Z"
 }
