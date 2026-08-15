@@ -11,10 +11,10 @@ done · `[!]` blocked) are defined in the `factory-protocol` skill.
 - [x] T1 (trivial) — Decouple Matrix tests from generated catalog order (Fixes #197)
   - acceptance: `src/components/Matrix.test.tsx` derives first-cell names and figures from the current catalog or a deliberately stable fixture; a repository-wide test sweep finds no assertions that depend accidentally on generated popularity order; Matrix tests pass after catalog rows are reordered
   - deps: none
-- [~] T2 (major) — Restore trustworthy gpt-oss-120b catalog generation (Fixes #199)
+- [x] T2 (major) — Restore trustworthy gpt-oss-120b catalog generation (Fixes #199)
   - acceptance: the current upstream `openai/gpt-oss-120b` tensor layout and revision behavior are documented from source evidence; `scripts/build-catalog.ts` models that layout without weakening the MXFP4 safety invariant or dropping the default model; `npm run catalog` regenerates all seeded models and focused tests guard the resolved packing rule
   - deps: T1
-- [ ] T3 (standard) — Verify and harden automated catalog refresh publication (Fixes #193)
+- [~] T3 (standard) — Verify and harden automated catalog refresh publication (Fixes #193)
   - acceptance: with repository workflow defaults still least-privilege, a manual or scheduled refresh completes through creation or update of a non-destructive PR based on current `main`; obsolete `catalog/refresh` state cannot invite a destructive manual merge; the successful run and resulting PR are recorded
   - deps: T2
 - [ ] T4 (major) — Resolve pinned-tensor placement floor semantics (Fixes #210)

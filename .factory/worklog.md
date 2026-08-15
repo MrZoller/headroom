@@ -30,3 +30,18 @@ at the bottom.
 ## 2026-08-15 — out-of-band CI fix (#217)
 
 Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml: Dependabot-triggered runs get fork-class secret restrictions, so the job now skips on `github.actor == dependabot[bot]` instead of failing red on dep bumps. Rode the T1 ship/log/complete bookkeeping to origin (squash 31e93e9). Verification: `ruby -ryaml -e "YAML.load_file('.github/workflows/claude-code-review.yml')"`.
+
+## 2026-08-15 — T2 trustworthy gpt-oss MXFP4 generation
+
+- Established from pinned upstream evidence that `openai/gpt-oss-120b` still uses the original U8 MXFP4 block/scale shard layout at revision `b5c939de8f754692c1647ca79fbf85e8c1e70f8a`; Hugging Face's derived U8 summary changed independently from 33/32 of logical experts to 1x, while gpt-oss-20b still reports 33/32.
+- Replaced summary-only trust with exact pinned-header validation: every layer must contain both expert projection block/scale pairs, 16 block bytes must encode 32 values, scales must match block prefixes, all packed tensors must be accounted for, and reconstructed/analytic counts must agree. Both observed API ratios are accepted only after that proof; unsafe tensor dimensions are refused.
+- Updated `docs/ROADMAP.md` with the revision behavior, measured counts, and source links. Focused tests cover both summary conventions, incomplete or altered layouts, unrelated U8 tensors, count disagreements, and unsafe shapes. The generated catalog was reverted after verification to avoid committing unrelated live popularity churn.
+- Acceptance evidence: `npm run catalog` completed 35 ok / 0 failed twice after the final implementation, retained `openai/gpt-oss-120b` at 116.8B, and wrote a complete catalog. Local correctness and security/tests review reached CLEAR; the verifier confirmed one safe-integer minor, it was fixed, and the re-panel verified the fix CLEAR.
+- Verification: `npm test` (41 files, 1,504 tests passed); `npm run test:e2e` (170 passed); `npm run lint`; `npm run format:check`; `npm run build` (199 routes prerendered); `npm run catalog` (35/35).
+- Opened held major-task PR #218. First shepherd pass found both CI build/browser runs still in progress, the Claude review workflow successful with no findings, Codex actively reviewing the verified head via a current 👀 reaction, and no comments or review threads. Task remains in review with `hold: true` for human approval and must not auto-merge.
+
+## 2026-08-15 — T2 merged
+
+- PR #218 was manually squash-merged at head `d8ee631dd9879432e0a62375a3d4732c91357326`; local `main` was synced to merge commit `b1815f2`.
+- Both CI workflow runs passed (build and browser checks), the Claude review workflow completed successfully, and there are no PR comments, formal reviews, or review threads. No late-merge marker exists for this PR.
+- Marked T2 complete and cleared its recorded task, branch, PR, and hold state.
