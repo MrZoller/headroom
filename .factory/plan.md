@@ -8,7 +8,7 @@ done · `[!]` blocked) are defined in the `factory-protocol` skill.
 
 <!-- user-requested tasks land here -->
 
-- [ ] T1 (trivial) — Decouple Matrix tests from generated catalog order (Fixes #197)
+- [~] T1 (trivial) — Decouple Matrix tests from generated catalog order (Fixes #197)
   - acceptance: `src/components/Matrix.test.tsx` derives first-cell names and figures from the current catalog or a deliberately stable fixture; a repository-wide test sweep finds no assertions that depend accidentally on generated popularity order; Matrix tests pass after catalog rows are reordered
   - deps: none
 - [ ] T2 (major) — Restore trustworthy gpt-oss-120b catalog generation (Fixes #199)
