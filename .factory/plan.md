@@ -14,7 +14,7 @@ done · `[!]` blocked) are defined in the `factory-protocol` skill.
 - [x] T2 (major) — Restore trustworthy gpt-oss-120b catalog generation (Fixes #199)
   - acceptance: the current upstream `openai/gpt-oss-120b` tensor layout and revision behavior are documented from source evidence; `scripts/build-catalog.ts` models that layout without weakening the MXFP4 safety invariant or dropping the default model; `npm run catalog` regenerates all seeded models and focused tests guard the resolved packing rule
   - deps: T1
-- [~] T3 (standard) — Verify and harden automated catalog refresh publication (Fixes #193)
+- [R] T3 (standard) — Verify and harden automated catalog refresh publication (Fixes #193)
   - acceptance: with repository workflow defaults still least-privilege, a manual or scheduled refresh completes through creation or update of a non-destructive PR based on current `main`; obsolete `catalog/refresh` state cannot invite a destructive manual merge; the successful run and resulting PR are recorded
   - deps: T2
 - [ ] T4 (major) — Resolve pinned-tensor placement floor semantics (Fixes #210)
