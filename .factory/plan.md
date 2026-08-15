@@ -8,6 +8,12 @@ done · `[!]` blocked) are defined in the `factory-protocol` skill.
 
 <!-- user-requested tasks land here -->
 
+The T1–T8 backlog imports below were requested directly by Chris
+(2026-08-15) and are ad-hoc pre-approved at their recorded sizes per
+factory-protocol — the request is the approval; the spec/plan approval
+gates do not apply to them. (Recorded after a cycle went idle reading
+those gates literally.)
+
 - [x] T1 (trivial) — Decouple Matrix tests from generated catalog order (Fixes #197)
   - acceptance: `src/components/Matrix.test.tsx` derives first-cell names and figures from the current catalog or a deliberately stable fixture; a repository-wide test sweep finds no assertions that depend accidentally on generated popularity order; Matrix tests pass after catalog rows are reordered
   - deps: none
