@@ -28,4 +28,5 @@ at the bottom.
 - Marked T1 complete and cleared its recorded task, branch, PR, and hold state.
 
 ## 2026-08-15 — out-of-band CI fix (#217)
+
 Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml: Dependabot-triggered runs get fork-class secret restrictions, so the job now skips on `github.actor == dependabot[bot]` instead of failing red on dep bumps. Rode the T1 ship/log/complete bookkeeping to origin (squash 31e93e9). Verification: `ruby -ryaml -e "YAML.load_file('.github/workflows/claude-code-review.yml')"`.
