@@ -317,7 +317,6 @@ export interface DeviceSpec {
    */
   hostLinkBytesPerSec?: number;
   tdpWatts?: number;
-  msrpUsd?: number;
   releasedAt?: string;
   source: string;
 }

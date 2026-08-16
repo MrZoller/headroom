@@ -203,11 +203,11 @@ test('the Hardware cell no longer sets the height of the row Model is in', async
 
   // The claim is on the page before the budget is applied to it. `voidUnderModel` only shrinks as
   // the Hardware cell loses content, so deleting the note outright would pass the assertion below
-  // — this is the row whose claim is two clauses, and it has to be stating both of them.
+  // — this row has the rumour, ceiling and unavailable-price clauses, and must state all three.
   expect(
     closed.hardware.text,
     'the M5 Ultra states no claim, so this measures an empty cell'
-  ).toMatch(/raiseable to \d+ GiB\.$/);
+  ).toMatch(/raiseable to \d+ GiB\. Price not announced\. Checked \d{4}-\d{2}-\d{2}\.$/);
   expect(closed.hardware.lines, 'the claim occupies no line box').toBeGreaterThan(0);
 
   // Five lines of slack covers what the Hardware cell legitimately carries beyond what Model does:

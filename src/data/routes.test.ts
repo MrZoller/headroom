@@ -157,6 +157,7 @@ describe('prerenderRoutes', () => {
     expect(route.title).toContain(device.name);
     expect(route.description).toContain(device.name);
     expect(route.description).toMatch(/\d+ GiB at \d+ GB\/s/);
+    expect(route.description).toMatch(/US launch list price.*before tax.*checked 2026-08-16/i);
   });
 
   it('names the model and its size in a model description', () => {
@@ -175,6 +176,7 @@ describe('prerenderRoutes', () => {
     expect(route.title).toContain(model.name);
     expect(route.description).toContain(device.name);
     expect(route.description).toContain(model.name);
+    expect(route.description).toMatch(/launch list price|price unavailable|no public list price/i);
   });
 });
 

@@ -446,18 +446,21 @@ describe('the device catalog is listed in the order it states', () => {
  */
 describe('the catalog covers the hardware the audience owns', () => {
   const gpus = DEVICES.filter((d) => d.class === 'discrete-gpu');
-  const priced = gpus.filter((d) => d.msrpUsd !== undefined);
+  const priced = gpus.filter(
+    (d): d is typeof d & { price: Extract<(typeof d)['price'], { kind: 'launch' }> } =>
+      d.price.kind === 'launch'
+  );
 
   /**
    * The headline number from the issue: the cheapest catalogued GPU was the 5080 at $999, so every
    * question from below that price — which is most of them — had no hardware to ask it about.
    */
   it('prices a GPU below the $999 floor the catalog used to start at', () => {
-    const cheapest = Math.min(...priced.map((d) => d.msrpUsd!));
+    const cheapest = Math.min(...priced.map((d) => d.price.usd));
     expect(cheapest).toBeLessThan(350);
 
     // A tier, not a token row. Six of the nine consumer NVIDIA/AMD/Intel rows sit under $999.
-    expect(priced.filter((d) => d.msrpUsd! < 999).length).toBeGreaterThanOrEqual(6);
+    expect(priced.filter((d) => d.price.usd < 999).length).toBeGreaterThanOrEqual(6);
   });
 
   /**
@@ -467,7 +470,7 @@ describe('the catalog covers the hardware the audience owns', () => {
   it('offers a consumer card from all three GPU vendors', () => {
     // Containment rather than set equality: the claim is that each of the three is *present* in
     // this tier, and a fourth vendor arriving is not a reason for this to fail.
-    const consumer = new Set(priced.filter((d) => d.msrpUsd! <= 1000).map((d) => d.vendor));
+    const consumer = new Set(priced.filter((d) => d.price.usd <= 1000).map((d) => d.vendor));
     for (const vendor of ['NVIDIA', 'AMD', 'Intel']) {
       expect(consumer, `no ${vendor} card at or under $1000`).toContain(vendor);
     }
@@ -508,7 +511,7 @@ describe('the catalog covers the hardware the audience owns', () => {
    * protect, and the only ways back to green would be deleting the row or lowering the bar.
    */
   it('has a machine under $400 that really runs a 12B at Q4_K_M', () => {
-    const budget = gpus.filter((d) => (d.msrpUsd ?? Number.POSITIVE_INFINITY) < 400);
+    const budget = gpus.filter((d) => d.price.kind === 'launch' && d.price.usd < 400);
     expect(budget.length).toBeGreaterThan(0);
 
     const verdicts = budget.map((device) => {
@@ -560,6 +563,26 @@ describe('the catalog covers the hardware the audience owns', () => {
 
     expect(studio.bandwidthBytesPerSec).toBe(410 * 1e9);
     expect(laptop.bandwidthBytesPerSec).toBe(546 * 1e9);
+  });
+
+  it('does not attach a machine price to Apple specification pages covering many configurations', () => {
+    const ambiguousPriceSources = [
+      'mac-studio-m3-ultra-512',
+      'mac-studio-m3-ultra-256',
+      'mac-studio-m3-ultra-96',
+      'macbook-pro-m4-max-128',
+      'mac-studio-m4-max-36',
+      'mac-mini-m4-pro-64',
+      'mac-mini-m4-pro-24',
+      'macbook-air-m4-16',
+    ];
+
+    for (const id of ambiguousPriceSources) {
+      expect(getDevice(id).price).toMatchObject({
+        kind: 'unavailable',
+        reason: 'incomplete-system',
+      });
+    }
   });
 
   /**
@@ -1221,7 +1244,14 @@ describe('a hand-typed device row is validated, not trusted', () => {
     interconnect: 'PCIe 5.0 x16',
     hostLinkGBs: 63.0,
     tdpWatts: 575,
-    msrpUsd: 1999,
+    price: {
+      kind: 'launch',
+      usd: 1999,
+      unit: 'card',
+      availability: 'current',
+      checkedAt: '2026-08-16',
+      source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-5090.c4216',
+    },
     releasedAt: '2025-01-30',
     source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-5090.c4216',
   };
@@ -1252,6 +1282,58 @@ describe('a hand-typed device row is validated, not trusted', () => {
     );
   });
 
+  it('requires one valid, dated and independently sourced price state', () => {
+    expect(() => toDevice({ ...ROW, price: undefined } as unknown as DeviceRow)).toThrow(
+      /valid price state/i
+    );
+    expect(() =>
+      toDevice({ ...ROW, price: { ...ROW.price, checkedAt: '2026-02-30' } } as DeviceRow)
+    ).toThrow(/checkedAt/i);
+    expect(() =>
+      toDevice({ ...ROW, price: { ...ROW.price, source: 'http://example.com' } } as DeviceRow)
+    ).toThrow(/HTTPS/i);
+    expect(() => toDevice({ ...ROW, price: { ...ROW.price, usd: 0 } } as DeviceRow)).toThrow(
+      /launch price/i
+    );
+  });
+
+  it('rejects speculative numeric prices for announced and rumoured hardware', () => {
+    for (const status of ['announced', 'rumored'] as const) {
+      expect(() => toDevice({ ...ROW, status })).toThrow(/pre-release prices must be unavailable/i);
+    }
+  });
+
+  it('accepts every explicit unavailable-price reason', () => {
+    for (const reason of [
+      'quote-only',
+      'no-public-price',
+      'not-announced',
+      'discontinued',
+      'incomplete-system',
+    ] as const) {
+      expect(
+        toDevice({
+          ...ROW,
+          price: {
+            kind: 'unavailable',
+            reason,
+            checkedAt: '2026-08-16',
+            source: 'https://example.com/price',
+          },
+        }).price
+      ).toMatchObject({ kind: 'unavailable', reason });
+    }
+  });
+
+  it('does not retain a purchase price in notes for incomplete-system rows', () => {
+    for (const row of devicesJson.devices.filter(
+      (device) =>
+        device.price?.kind === 'unavailable' && device.price.reason === 'incomplete-system'
+    )) {
+      expect(row.note ?? '').not.toMatch(/\$\d/);
+    }
+  });
+
   it('names what it expected, since a human is the one fixing the row', () => {
     expect(() => toDevice({ ...ROW, class: 'gpu' })).toThrow(/discrete-gpu, unified-soc, cpu-ram/);
   });
@@ -1262,9 +1344,45 @@ describe('a hand-typed device row is validated, not trusted', () => {
     for (const cls of ['discrete-gpu', 'unified-soc', 'cpu-ram'] as const) {
       expect(toDevice({ ...ROW, class: cls }).class).toBe(cls);
     }
-    for (const status of ['shipping', 'announced', 'rumored'] as const) {
-      expect(toDevice({ ...ROW, status }).status).toBe(status);
-    }
+    // Shipping devices may have a launch price or a dated unavailable-price reason; pre-release
+    // devices must have unavailable prices.
+    expect(toDevice({ ...ROW, status: 'shipping' }).status).toBe('shipping');
+    expect(
+      toDevice({
+        ...ROW,
+        status: 'shipping',
+        price: {
+          kind: 'unavailable',
+          reason: 'incomplete-system',
+          checkedAt: '2026-08-16',
+          source: 'https://example.com',
+        },
+      }).status
+    ).toBe('shipping');
+    expect(
+      toDevice({
+        ...ROW,
+        status: 'announced',
+        price: {
+          kind: 'unavailable',
+          reason: 'not-announced',
+          checkedAt: '2026-08-16',
+          source: 'https://example.com',
+        },
+      }).status
+    ).toBe('announced');
+    expect(
+      toDevice({
+        ...ROW,
+        status: 'rumored',
+        price: {
+          kind: 'unavailable',
+          reason: 'not-announced',
+          checkedAt: '2026-08-16',
+          source: 'https://example.com',
+        },
+      }).status
+    ).toBe('rumored');
     for (const dtype of ['fp16', 'bf16', 'fp8', 'fp4', 'int8'] as const) {
       expect(toDevice({ ...ROW, tflops: { [dtype]: 100 } }).flops[dtype]).toBeGreaterThan(0);
     }
@@ -1454,6 +1572,14 @@ describe('the catalog refuses a ceiling it cannot justify', () => {
     maxAllocatableGiB: 88,
     bandwidthGBs: 819,
     tflops: { fp16: 40.5 },
+    price: {
+      kind: 'launch',
+      usd: 3999,
+      unit: 'machine',
+      availability: 'current',
+      checkedAt: '2026-08-16',
+      source: 'https://www.apple.com/mac-studio/specs/',
+    },
     source: 'https://www.apple.com/mac-studio/specs/',
   };
 
@@ -1611,10 +1737,9 @@ describe('the Hardware picker states a claim, not the catalog', () => {
   it.each(composed.map((c) => [c.device.id, c] as const))(
     '%s ends every clause it states',
     (id, { claim, clauses: count }) => {
-      if (count === 0) {
-        expect(claim, `${id} derives no clause, so it should carry no picker note`).toBeUndefined();
-        return;
-      }
+      // With honest pricing, every shipping device has a price claim, so `claim` is never `undefined`.
+      // The `count` is the number of derived clauses (pre-release warning, raiseable ceiling warning).
+      expect(claim, `${id} derives no clause, so it should carry no picker note`).toBeDefined();
 
       // Whatever the last clause is, the note finishes as a sentence.
       expect(claim, `${id}: “${claim}” does not end a sentence`).toMatch(/[.!?…]$/);
@@ -1644,12 +1769,13 @@ describe('the Hardware picker states a claim, not the catalog', () => {
         );
       }
 
-      // Fourteen words is the longest claim the catalog can produce today (a rumour warning plus a
-      // raiseable ceiling). The bound is there to fail loudly if reference prose gets folded back
-      // in: the shortest curated note on any row is 25 words, and the longest is 197.
+      // With honest pricing, the picker claim includes the device price. The bound is there to
+      // fail loudly if reference prose gets folded back in: the shortest curated note on any row
+      // is 25 words, and the longest is 197. The longest claim today is a raiseable ceiling plus
+      // the price claim, which is 22 words.
       const words = (claim ?? '').split(/\s+/).filter(Boolean);
       expect(words.length, `${id}: ${words.length} words of picker note — “${claim}”`).toBeLessThan(
-        20
+        25
       );
     }
   );

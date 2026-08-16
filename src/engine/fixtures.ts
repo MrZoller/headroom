@@ -249,7 +249,6 @@ export const RTX_5080: DeviceSpec = {
   interconnect: 'PCIe 5.0 x16',
   hostLinkBytesPerSec: 63 * GB,
   tdpWatts: 360,
-  msrpUsd: 999,
   source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-5080.c4217',
 };
 
@@ -270,7 +269,6 @@ export const RTX_5090: DeviceSpec = {
   // The link to the *host*, not the one to a neighbouring card. Offloaded weights cross this.
   hostLinkBytesPerSec: 63 * GB,
   tdpWatts: 575,
-  msrpUsd: 1999,
   source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-5090.c4216',
 };
 
@@ -295,7 +293,6 @@ export const RTX_4090: DeviceSpec = {
   interconnect: 'PCIe 4.0 x16',
   hostLinkBytesPerSec: 31.5 * GB,
   tdpWatts: 450,
-  msrpUsd: 1599,
   source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-4090.c3889',
 };
 
@@ -317,7 +314,6 @@ export const DGX_SPARK: DeviceSpec = {
   flops: { fp16: 125 * TFLOP, fp8: 250 * TFLOP, fp4: 500 * TFLOP },
   interconnect: 'ConnectX-7 200GbE',
   tdpWatts: 240,
-  msrpUsd: 3999,
   source: 'https://www.lmsys.org/blog/2025-10-13-nvidia-dgx-spark/',
 };
 
@@ -343,7 +339,6 @@ export const MAC_STUDIO_M3_ULTRA_256: DeviceSpec = {
   // upgrade. 54 here paired the larger bin's compute with the smaller bin's price (#117).
   flops: { fp16: 40.5 * TFLOP },
   tdpWatts: 270,
-  msrpUsd: 5599,
   source: 'https://www.apple.com/mac-studio/specs/',
 };
 
@@ -368,7 +363,6 @@ export const MAC_STUDIO_M3_ULTRA_512: DeviceSpec = {
   bandwidthBytesPerSec: 819 * GB,
   flops: { fp16: 54 * TFLOP },
   tdpWatts: 270,
-  msrpUsd: 9499,
   source: 'https://www.apple.com/mac-studio/specs/',
 };
 
@@ -392,7 +386,6 @@ export const STRIX_HALO_395: DeviceSpec = {
   bandwidthBytesPerSec: 256 * GB,
   flops: { fp16: 59 * TFLOP },
   tdpWatts: 120,
-  msrpUsd: 1999,
   source: 'https://www.amd.com/en/products/processors/laptop/ryzen/ai-max.html',
 };
 

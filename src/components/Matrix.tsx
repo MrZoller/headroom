@@ -12,6 +12,7 @@ import { getRuntime, kvSubstitutionFor, runtimeDrives, substitutionFor } from '@
 import { FALLBACK_QUANT_ID, quantApplies } from '@/lib/quantChoice';
 import { colors, magnitudeFill, magnitudeRamp } from '@/design/tokens';
 import { MEASURE_DIRECTION } from '@/engine/measure';
+import type { DeviceSpec, ModelSpec } from '@/engine/types';
 import { DEVICE_CLASS_LABELS, MEASURES, kvLabel } from '@/lib/stops';
 import { HOST_RAM_UNCHECKED } from '@/lib/verdicts';
 import { PanelCount } from './PanelCount';
@@ -248,7 +249,7 @@ export function Matrix({ config }: { config: Config }) {
    * Substituting keeps every row informative, and the substitution is stated rather than hidden.
    */
   const quantFor = useMemo(
-    () => (model: (typeof models)[number], device: (typeof devices)[number]) => {
+    () => (model: ModelSpec, device: DeviceSpec) => {
       if (quantApplies(quant, model, device, runtime)) return quant;
       // `runtime` is passed to both checks. Omitting it from the first let an unloadable
       // selection through as though it applied; omitting it from the second chose an unloadable

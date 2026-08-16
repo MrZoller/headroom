@@ -4,7 +4,7 @@
  * both surfaces show the order the files state. Split out of `App.test.tsx`, which keeps the
  * panels agreeing with each other.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -440,12 +440,14 @@ describe('the controls that drive every figure explain what they are', () => {
 
       // The only three-fragment row, and the one the issue calls out: the rumour warning was fused
       // to a capacity figure, which is the sentence on that row that most needs to stand alone.
+      // With honest pricing, the note includes the price claim as a fourth clause.
       const note = description(hardware());
       expect(note).toMatch(/^Rumoured — specs may change\. /);
-      expect(note).toMatch(/384 GiB allocatable by default, raiseable to 480 GiB\.$/);
+      expect(note).toMatch(/384 GiB allocatable by default, raiseable to 480 GiB\. /);
+      expect(note).toMatch(/Price not announced\. Checked \d{4}-\d{2}-\d{2}\.$/);
 
-      // Fourteen words, against 146 before — and none of the derivation.
-      expect(note.split(/\s+/)).toHaveLength(14);
+      // 19 words (384 + raiseable + price claim), against 146 before — and none of the derivation.
+      expect(note.split(/\s+/)).toHaveLength(19);
       expect(note).not.toMatch(/iogpu|window server|sysctl|per-core rate|rumour-grade/i);
     });
 
@@ -491,17 +493,17 @@ describe('the controls that drive every figure explain what they are', () => {
       // Five rows write `**strong**`, two write `*emphasis*` and nine write backticked identifiers;
       // nothing rendered any of them, so the picker printed literal asterisks. Moving the prose to
       // its own region without this would have moved the glitch with it.
-      await user.selectOptions(hardware(), 'mac-studio-m3-ultra-96');
+      await user.selectOptions(hardware(), 'mac-studio-m2-ultra-192');
       await user.click(toggle());
 
       const region = detail();
       expect(region).not.toBeNull();
-      expect(region!.querySelector('strong')?.textContent).toMatch(/60-core GPU/);
+      expect(region!.querySelector('strong')?.textContent).toMatch(/GPU bin is in the name/);
       expect(region!.querySelector('code')?.textContent).toBe('iogpu.wired_limit_mb');
       // Verbatim apart from the marks: the note is provenance, and losing a clause of it in a
       // renderer would be worse than printing the asterisks.
       expect(region!.textContent).toBe(
-        getDevice('mac-studio-m3-ultra-96').note!.replace(/\*\*|\*|`/g, '')
+        getDevice('mac-studio-m2-ultra-192').note!.replace(/\*\*|\*|`/g, '')
       );
 
       // The single-asterisk register, which the first version of this renderer did not read: two
@@ -573,11 +575,37 @@ describe('the controls that drive every figure explain what they are', () => {
       expect(device.allocatableTunable).toBeUndefined();
       expect(device.note).toBeDefined();
 
-      expect(hardware()).not.toHaveAttribute('aria-describedby');
-      expect(description(hardware())).toBe('');
+      // With honest pricing, the picker includes the price claim in the description.
+      expect(hardware()).toHaveAttribute('aria-describedby');
+      const note = description(hardware());
+      expect(note).toMatch(/US launch list price/);
+      expect(note).toMatch(/Before tax\./);
+      // The curated note is not included in the picker description.
+      expect(note).not.toContain(device.note!.slice(0, 40));
 
       await user.click(toggle());
       expect(detail()!.textContent).toMatch(/NVLink/);
+    });
+
+    it('updates card-only pricing with the selected device count', async () => {
+      const user = userEvent.setup();
+      render(<App />);
+      await user.selectOptions(hardware(), 'rtx-5090');
+
+      act(() => useConfig.getState().set('deviceCount', 4));
+      expect(description(hardware())).toMatch(/4 × \$1,999 = \$7,996, cards only/i);
+      expect(description(hardware())).toMatch(/excludes the rest of the system/i);
+    });
+
+    it('surfaces honest fallbacks for quote-only and incomplete-system rows', async () => {
+      const user = userEvent.setup();
+      render(<App />);
+
+      await user.selectOptions(hardware(), 'mi355x');
+      expect(description(hardware())).toMatch(/sold by quote.*Checked 2026-08-16/i);
+
+      await user.selectOptions(hardware(), 'epyc-9654');
+      expect(description(hardware())).toMatch(/No complete-system price.*Checked 2026-08-16/i);
     });
 
     it('offers no disclosure for a row the catalog says nothing extra about', async () => {

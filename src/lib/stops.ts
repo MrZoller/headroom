@@ -4,6 +4,7 @@ import type { DeviceSpec, DeviceStatus, KvPrecision, RuntimeSpec } from '@/engin
 // prose is typed against the catalog's row. Type-only, so it erases and this module still pulls in
 // no data at runtime.
 import type { CatalogDevice } from '@/data/catalog';
+import { devicePriceClaim } from './device-price';
 import { gibLabel, optionLabel, sentences } from './format';
 // The scenario *shape*, not the store: `scenario.ts` deliberately depends on nothing but engine
 // types so that everything needing the shape can have it without a cycle. Type-only, so it erases.
@@ -434,7 +435,8 @@ export function runtimeOptionLabel(runtime: RuntimeSpec, drives: boolean): strin
  */
 export function devicePickerNote(
   device: CatalogDevice,
-  ceilingBytes: number
+  ceilingBytes: number,
+  deviceCount = 1
 ): { claim?: string; detail?: string } {
   const preRelease = preReleaseWord(device.status);
   return {
@@ -451,7 +453,8 @@ export function devicePickerNote(
         ceilingBytes > device.allocatableBytes &&
         `${gibLabel(device.allocatableBytes)} allocatable by default, raiseable to ${gibLabel(
           ceilingBytes
-        )}.`
+        )}.`,
+      devicePriceClaim(device, deviceCount)
     ),
     detail: device.note,
   };

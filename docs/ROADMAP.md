@@ -280,6 +280,23 @@ at most sizes. _Serial commas_ have no dominant form to pick: seven user-facing 
 omit the Oxford comma and five carry it, and README — the reference voice — carries it in both of
 its. The honest answer is that there is no convention to enforce yet, not that one side won.
 
+### Device pricing
+
+Device prices are catalog provenance, not engine inputs. A numeric price is the **US launch list
+price before tax** for the represented card or exact machine configuration. It is never a current
+street price: the catalog records when the price was checked, cites price evidence separately from
+the specification source, and labels a retained launch price as historical when the product is
+discontinued. Every row has an explicit price state, so quote-only accelerators, products with no
+public list price, unannounced hardware, discontinued machines, and CPU rows that represent only one
+part of a configurable system never look like accidentally missing data.
+
+The Hardware control and prerendered device metadata expose this state. Multiple cards are shown as
+`N × price`, explicitly **cards only**, because the motherboard, host, power supply, chassis, and
+networking are not priced here. Machine prices describe only the configuration named by the row.
+Price-based ranking, dollars per token, current-market scraping, and complete-rig pricing remain out
+of scope: making any of those trustworthy requires a separate, frequently refreshed catalog rather
+than arithmetic over launch prices.
+
 ## v2 — guided mode, and what building it settled
 
 Four features, filed under the

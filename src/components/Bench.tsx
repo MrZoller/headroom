@@ -281,7 +281,11 @@ export function Bench() {
         // — a claim you choose by, and reference prose about what you chose — and `Select`'s are
         // named for where they go. A spread would have compiled and silently left `note` unset,
         // because an excess property arriving through one is not an error.
-        const { claim, detail } = devicePickerNote(d, maxAllocatablePerDevice(d));
+        const { claim, detail } = devicePickerNote(
+          d,
+          maxAllocatablePerDevice(d),
+          config.deviceCount
+        );
         return {
           value: d.id,
           label: deviceOptionLabel(d),
@@ -304,7 +308,7 @@ export function Bench() {
           group: DEVICE_CLASS_LABELS[d.class],
         };
       }),
-    []
+    [config.deviceCount]
   );
 
   /**
