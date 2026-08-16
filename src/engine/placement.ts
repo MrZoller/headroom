@@ -866,12 +866,9 @@ export function planPlacement(
    */
   const overflowOf = (bin: DeviceLoad) =>
     Math.max(0, loadOf(bin) + activations - allocatableBytesPerDevice);
-  const unpricedHostKv =
-    canOffload && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
+  const unpricedHostKv = canOffload && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
   const spilledOf = (bin: DeviceLoad) =>
-    canOffload
-      ? Math.min(overflowOf(bin), bin.layerWeightBytes)
-      : 0;
+    canOffload ? Math.min(overflowOf(bin), bin.layerWeightBytes) : 0;
   const spilledBytes = binsPerEntry * bins.reduce((sum, bin) => sum + spilledOf(bin), 0);
   // Against what the devices were asked to hold rather than against the file — see
   // `offloadFraction`'s docblock. The two are the same number everywhere but a discrete-GPU rig

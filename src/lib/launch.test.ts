@@ -1652,13 +1652,16 @@ describe('what review found, kept as tests', () => {
       expect(emitted['llama-server'].serve.ok).toBe(true);
       expect(emitted['llama-bench'].measure.ok).toBe(true);
       expect(text(emitted['llama-server'].serve)).toContain('-ngl 4');
+      if (!emitted['llama-server'].serve.ok) throw new Error('unreachable');
+      expect(emitted['llama-server'].serve.notes.join(' ')).toMatch(
+        /card 4 carries the output tensor and no layer at all/i
+      );
       for (const emission of [emitted['llama-server'].serve, emitted['llama-bench'].measure]) {
         if (!emission.ok) throw new Error(emission.reason);
         const notes = emission.notes.join(' ');
         expect(notes).toMatch(/shed layers and their KV cache in host RAM/i);
         expect(notes).toMatch(/does not check that host capacity/i);
         expect(notes).toMatch(/speed figures above do not describe this command/i);
-        expect(notes).toMatch(/card 4 carries the output tensor and no layer at all/i);
         expect(notes).not.toMatch(/does not run/i);
       }
     });
