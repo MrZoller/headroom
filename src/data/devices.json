@@ -924,10 +924,8 @@
       "tflops": { "fp16": 59 },
       "tdpWatts": 120,
       "price": {
-        "kind": "launch",
-        "usd": 1999,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://www.amd.com/en/products/processors/laptop/ryzen/ai-max.html"
       },

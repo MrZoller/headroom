@@ -1315,8 +1315,21 @@ describe('a hand-typed device row is validated, not trusted', () => {
     for (const cls of ['discrete-gpu', 'unified-soc', 'cpu-ram'] as const) {
       expect(toDevice({ ...ROW, class: cls }).class).toBe(cls);
     }
-    // Shipping devices must have a launch price; pre-release devices must have unavailable prices.
+    // Shipping devices may have a launch price or a dated unavailable-price reason; pre-release
+    // devices must have unavailable prices.
     expect(toDevice({ ...ROW, status: 'shipping' }).status).toBe('shipping');
+    expect(
+      toDevice({
+        ...ROW,
+        status: 'shipping',
+        price: {
+          kind: 'unavailable',
+          reason: 'incomplete-system',
+          checkedAt: '2026-08-16',
+          source: 'https://example.com',
+        },
+      }).status
+    ).toBe('shipping');
     expect(
       toDevice({
         ...ROW,
