@@ -48,6 +48,7 @@ const FITNESS: Record<Fitness, { icon: string; word: string; color: string }> = 
   good: { icon: '●', word: 'Yes', color: 'var(--color-good)' },
   tight: { icon: '◐', word: 'Tight', color: 'var(--color-warning)' },
   fail: { icon: '○', word: 'No', color: 'var(--color-critical)' },
+  unmeasured: { icon: '—', word: 'Not measured', color: 'var(--color-muted)' },
 };
 
 /**
