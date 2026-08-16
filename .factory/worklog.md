@@ -111,3 +111,10 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - Verification on the final committed catalog: `npm test` (42 files, 1,534 tests passed); `npm run lint`; `npm run format:check`; `npm run build` (199 routes plus 404.html, 160.6 MiB); `npm run test:e2e` (170 passed).
 - Opened held major-task PR [#225](https://github.com/MrZoller/headroom/pull/225) at head `6798ae4159159e075a14ea5b5e8efe5eacb8c6aa`. First shepherd pass found both CI runs and Claude Code Review in progress; Codex has an active 👀 reaction and no verdict yet. There are no comments, reviews, threads, findings, or repository hold label. Durable `state.hold: true` and the major classification enforce the hold; human merge authority is required after automation completes.
 - `factory-git push-bookkeeping` was rejected because remote `main` moved or branch protection refused the direct update. Per protocol it was not retried; held-task state remains durable in this clone and will reach the remote through the normal merge topology.
+
+## 2026-08-16 — T7 merged
+
+- Held major PR [#225](https://github.com/MrZoller/headroom/pull/225) was manually squash-merged at verified head `4187cabe89892b58b193f95249aa01c1c3ce0594` as `12c56e1`; its branch was deleted.
+- CI build/browser checks and the Claude Code Review workflow passed on the merged head. All seven review threads were resolved: five blocking pricing defects were fixed before merge, the duplicate dead-field concern was superseded by its fix, and the verifier-classified price-union typo-coverage minor was parked in T9. There are no refuted findings.
+- Late-verdict sweep initialized PR #225's cursor at 7 bot review/comment verdicts; all were present before the merge, so nothing was orphaned into the backlog. The cursor remains during the 30-minute window.
+- Marked T7 complete and cleared its recorded task, branch, PR, and hold state.

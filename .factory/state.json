@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T7",
-  "branch": "factory/t7-honest-device-pricing",
-  "pr": 225,
-  "hold": true,
-  "updated": "2026-08-16T14:57:00Z"
+  "current_task": null,
+  "branch": null,
+  "pr": null,
+  "hold": false,
+  "updated": "2026-08-16T15:06:28Z"
 }
