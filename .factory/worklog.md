@@ -59,3 +59,11 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - Build, browser, and Claude Code Review checks passed on that head. Codex reviewed the same head. Both Codex findings were verified as real but non-blocking timing races and parked in the single rolling T9 review-minors batch; the repository ruleset requires thread resolution, so the disposition replies were recorded and both threads resolved.
 - Marked T3 complete and cleared its recorded task, branch, PR, and hold state. The factory is idle because the remaining ad-hoc tasks require approvals; no refuted findings require a WORKLOG decision entry.
 - Shepherd verification: `gh pr view 220 --json headRefOid,state,mergeStateStatus,statusCheckRollup,reviews`; `gh run list --workflow=claude-code-review.yml --commit 1cc9b2e0c87d96bbd54473f57b9c48e745638400`; `gh api repos/MrZoller/headroom/rules/branches/main`; `~/.config/opencode/bin/factory-git merge 220 1cc9b2e0c87d96bbd54473f57b9c48e745638400`.
+
+## 2026-08-16 — T4 pinned-tensor host-KV fallback semantics
+
+- Established from llama.cpp commit `ece963f` that shed layers execute on the CPU and their KV buffers follow them to host memory; transparent VRAM fallback is not assumed. Headroom now preserves pinned tensors, caps reported weight spill at repeating-layer bytes, and records the runnable mixed placement as `unpricedHostKv` rather than false OOM or ordinary priced offload.
+- Workload verdicts explicitly say host RAM is unchecked and performance cannot be graded. llama-server and llama-bench commands remain available with matching launch guidance; the measured Llama 3.2 3B BF16 case on 4× RTX 5080 at 128K/4 users emits `-ngl 4`, with the output-only seeded card preserved.
+- Acceptance evidence: focused regression tests cover the measured seeded-bin overflow and an ordinary weight-offload control. The local correctness and security/tests panel reached CLEAR after the verifier rejected one finding whose proposed `canOffload` guard was already present.
+- Verification: `npm test` (41 files, 1,508 tests passed); `npm run lint`; `npm run format:check`; `npm run build` (199 routes plus 404.html, 162.5 MiB); `npm run test:e2e` (170 passed).
+- Opened held major-task PR [#221](https://github.com/MrZoller/headroom/pull/221). Task remains in review with `hold: true` for human approval and must not auto-merge.
