@@ -402,7 +402,9 @@ function planGraded(
     const selected = estimateScenario({ model, quant, usage, rig, runtime });
 
     if (selected.placement.unsupported !== undefined) return undefined;
-    if (selected.placement.impossible) continue;
+    // An unpriced host-KV fallback runs, but cannot support a numeric recommendation. Like an
+    // impossible tier, it must let a smaller declared tier try for a measurable placement.
+    if (selected.placement.impossible || selected.placement.unpricedHostKv) continue;
     return { usage, selected };
   }
 
