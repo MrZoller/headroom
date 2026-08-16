@@ -341,7 +341,7 @@ describe('llama.cpp: one catalog row, three launchers', () => {
     });
   });
 
-  describe('-ts carries the packing, and only when the packing is uneven', () => {
+  describe('-ts carries every expressible multi-device packing', () => {
     /**
      * **The combination the first version of this file never tested, and got wrong.**
      *
@@ -669,28 +669,6 @@ describe('llama.cpp: one catalog row, three launchers', () => {
     it('stays silent on a single device, where there is nothing to split', () => {
       expect(text(commands(i)['llama-server'].serve)).not.toContain('-ts');
     });
-
-    it('stays silent when the split is even, which is what llama.cpp would do unaided', () => {
-      // A dense model divides cleanly, so the flag would say "split this evenly" — which is the
-      // default. Emitting it anyway would make the flag noise and hide the case that matters.
-      //
-      // **At 128K rather than 4K, and the difference is #182's seed.** The output projection now
-      // seeds the last bin, so an evenly divisible rig only splits evenly when that block weighs
-      // less than one layer's combined load — which it does once the cache is the larger term.
-      // Llama 3.1 8B's table is 318 MB against 149 MB of layer at 4K and 669 MB at 128K, so the
-      // same rig is 9,9,8,6 there and 8,8,8,8 here.
-      const dense = input(
-        LLAMA_31_8B,
-        getQuant('q4_k_m'),
-        LLAMA_CPP,
-        RTX_5090,
-        4,
-        usage({ contextTokens: 131072 })
-      );
-      const counts = dense.placement.assignment.shares.map((s) => s.layers);
-      expect(new Set(counts).size, 'the split is uneven, so this proves nothing').toBe(1);
-      expect(text(commands(dense)['llama-server'].serve)).not.toContain('-ts');
-    });
   });
 
   /**
@@ -784,6 +762,54 @@ describe('llama.cpp: one catalog row, three launchers', () => {
       );
       return { ngl, ts, outputDevice, perDevice, onGpu: layerDevice.filter((x) => x >= 0).length };
     }
+
+    it('states an even layer split whose output slot makes the window uneven (#207)', () => {
+      // At 128K the output projection weighs less than one layer's combined weight and cache, so
+      // #182's seeded packing is genuinely 8,8,8,8. The command still has 33 slots to distribute:
+      // 32 repeating layers plus the output tensor. Equal default shares therefore hand the extra
+      // layer to card 1 and the output to card 4; explicit 8,8,8,9 ratios preserve the engine's
+      // placement instead.
+      const dense = input(
+        LLAMA_31_8B,
+        getQuant('q4_k_m'),
+        LLAMA_CPP,
+        RTX_5090,
+        4,
+        usage({ contextTokens: 131072 })
+      );
+      const shares = dense.placement.assignment.shares;
+      const sized = shares.flatMap(
+        (share) => Array(share.deviceCount).fill(share.residentLayers) as number[]
+      );
+      expect(new Set(sized).size, 'the resident split is uneven, so this proves nothing').toBe(1);
+
+      const served = text(commands(dense)['llama-server'].serve);
+      const measured = text(commands(dense)['llama-bench'].measure);
+      expect(served).toContain('-ts');
+      expect(measured).toContain('-ts');
+
+      const got = place(dense, served);
+      expect(got.perDevice).toEqual(sized);
+
+      // Derive the output card from the engine's byte accounting, not from the emitter's "last"
+      // rule: exactly one bin carries outputBytes beyond its repeating layers (and bin 0's tower).
+      const { layerBytes, outputBytes, towerBytes } = weightBreakdown(dense.model, dense.quant);
+      const perLayer = layerBytes / dense.model.layers;
+      const holdsTable = shares.flatMap((share, at) => {
+        const excess = share.weightBytes - share.layers * perLayer - (at === 0 ? towerBytes : 0);
+        return Math.abs(excess - outputBytes) < 1024 ? [at] : [];
+      });
+      expect(holdsTable).toHaveLength(1);
+      expect(got.outputDevice).toBe(holdsTable[0]);
+
+      const unaided = placeSlots(dense.model.layers, got.ngl, null, dense.rig.count);
+      expect(
+        Array.from(
+          { length: dense.rig.count },
+          (_, device) => unaided.layerDevice.filter((at) => at === device).length
+        )
+      ).not.toEqual(sized);
+    });
 
     it('worked by hand: 32 layers over five cards, and the fifth keeps the table', () => {
       /**

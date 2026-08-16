@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T5",
-  "branch": "factory/t5-reject-unpriced-calibration",
+  "current_task": "T6",
+  "branch": "factory/t6-even-tensor-splits",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-16T05:25:49Z"
+  "updated": "2026-08-16T06:40:58Z"
 }

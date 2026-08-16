@@ -75,3 +75,17 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - CI build and browser checks and the Claude Code Review workflow all passed on the merged head. Codex reviewed that exact head. There is no late-merge marker and no new bot verdict after the merge to triage.
 - Marked T4 complete and cleared its recorded task, branch, PR, and hold state. No minors or refuted findings require post-merge entries.
 - Shepherd verification: `gh pr view 221 --json state,mergedAt,headRefOid,statusCheckRollup,reviews,comments`; `gh run list --commit 2e240ff41b7d62dc30537c5e67093a8b928276a2`; `~/.config/opencode/bin/factory-git sync`.
+
+## 2026-08-16 — T5 exact calibration placement validation
+
+- Removed the legacy partial-placement tolerance: a prediction of `N` resident repeating layers now accepts only llama.cpp's `-ngl N+1`; zero accepts only `-ngl 0`, and an `L`-layer fully resident prediction requires at least `-ngl L+1` while retaining larger values that clamp to the same placement.
+- Rejection copy now distinguishes the pasted `-ngl` slot value, the repeating layers it loads, the repeating layers Headroom priced, and the emitted value. Focused tests prove rejected partial and fully resident rows are filtered from the calibration submission corpus; the settled semantics are recorded in `docs/ROADMAP.md`.
+- Verification: `npm run lint`; `npm run format:check`; `npm test` (41 files, 1,519 tests passed); `npm run build` (199 routes plus 404.html, 160.5 MiB); `npm run test:e2e` (170 passed). The local correctness and security/tests panel and adversarial verifier returned CLEAR.
+- Opened held major-task PR [#223](https://github.com/MrZoller/headroom/pull/223). Task remains in review with `hold: true` for human approval and must not auto-merge.
+- First shepherd pass at head `70d893d48548031360162660cb468e17fe1537d5`: build and browser CI plus Claude Code Review are in progress; Codex has an active 👀 reaction and no verdict yet. There are no comments, reviews, threads, or findings. The repository has no hold label, so durable `state.hold: true` and the major classification enforce the hold; human merge authority remains required after automation completes.
+
+## 2026-08-16 — T5 merged
+
+- Held major PR [#223](https://github.com/MrZoller/headroom/pull/223) was manually squash-merged at head `70d893d48548031360162660cb468e17fe1537d5` as `8e78c5f` and its branch was deleted.
+- Both CI build/browser runs and the Claude Code Review workflow passed. Codex posted a clean `+1` reaction on the PR body; the PR had a single pushed head, so that verdict is attributable to the merged head. There are no review comments or threads, and no parked minors or refuted findings require follow-up.
+- Marked T5 complete and cleared its recorded task, branch, PR, and hold state. Created the late-verdict cursor at count 0; it remains during the 30-minute post-merge window.

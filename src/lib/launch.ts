@@ -244,7 +244,7 @@ interface TensorSplit {
 }
 
 /**
- * `-ts`, when the packing actually produced an uneven split.
+ * `-ts`, whenever llama.cpp's default could choose a different split.
  *
  * This is the one flag that exists *because* the assignment was surfaced. llama.cpp's default split
  * is proportional to each device's memory, which on a homogeneous rig is an equal number of layers —
@@ -311,17 +311,18 @@ interface TensorSplit {
  * Confirmed against the port in `launch.test.ts`: `-ngl 2 -ts 1,1` delivers `[1,0]` layers with the
  * output on card 1, and `-ngl 3 -ts 1,1,0,1` delivers `[1,1,0,0]` with the output on card 3.
  *
- * Emitted only when the counts really differ, so the flag never appears saying "split this evenly",
- * which is what llama.cpp would have done unaided — and that gate reads the resident counts too,
- * since a packing that assigns equal counts of *unequal* layers is exactly where the flag is needed.
+ * **An even resident split still needs the flag** (#207). It describes `L` repeating layers, while
+ * llama.cpp distributes the `L + 1`-slot window that also contains the output tensor. If `n`
+ * devices divide `L` evenly, they cannot divide `L + 1`; the default must put the remainder on a
+ * different card from the seeded output bin. The default is also based on *current free memory*, so
+ * even nominally identical cards are not a reproducible substitute for the explicit ratios.
  *
- * **That gate is measurably too tight and #204 deliberately did not widen it.** An even *resident*
- * split is not an even *window*: `L + 1` slots over `n` identical cards cannot divide evenly when
- * `n` divides `L`, so llama.cpp's memory-proportional default hands card 0 an extra layer and takes
- * one off the card holding the output. The same sweep finds 89,615 configurations that suppress the
- * flag on this gate and **not one** where the default reproduces what was packed. Widening it would
- * put a `-ts` on 89,615 commands that carry none today, which is a larger rewrite than the one
- * verified here and interacts with #182's packing change; it is reported rather than taken.
+ * Re-measured 16 August 2026 against the current 35-model, 43-device catalog after #182/#209 changed
+ * the packing: of 361,200 configurations, 235,819 reach a runnable command and 59,590 reach the old
+ * equal-resident-count suppression gate (34,621 fully resident and 24,969 spilling). Current
+ * llama.cpp still normalises free-memory shares over `min(ngl, L + 1)` and selects with strict
+ * `upper_bound`; read from `src/llama-model.cpp:1317-1359` at commit `ad1de39e`. Every expressible
+ * multi-device window therefore gets `-ts`, including those whose repeating-layer counts are even.
  *
  * **And never where the layers cache different amounts, which is the case the flag looked most
  * useful for** (raised by Codex on #164, P1). `-ts` partitions llama.cpp's ordered `-ngl` suffix
@@ -339,9 +340,8 @@ interface TensorSplit {
  * 1,024-token context was refused the flag it could have had, and told why in terms of an imbalance
  * that does not exist there.
  *
- * What remains is still worth having: a model whose layers cache alike, over a device count that
- * does not divide it (48 layers over 5 cards is 10,10,10,9,9), is both uneven and exactly
- * expressible, and llama.cpp's memory-proportional default gets it wrong.
+ * What remains is still worth having: wherever layers cache alike, their packed counts describe the
+ * contiguous ranges exactly, and explicit ratios keep llama.cpp from re-deriving another placement.
  */
 function tensorSplit(input: LaunchInput): TensorSplit | undefined {
   const { parallelism, shares } = input.placement.assignment;
@@ -354,8 +354,6 @@ function tensorSplit(input: LaunchInput): TensorSplit | undefined {
   if (sized.length <= 1) return undefined;
   // Nothing is on a GPU at all, so there is no window to proportion. `-ngl 0` already says it.
   if (sized.every((c) => c === 0)) return undefined;
-  if (Math.max(...sized) === Math.min(...sized)) return undefined;
-
   // The extra slot goes to the last share unconditionally, because that is the bin `planPlacement`
   // seeded with the output projection — and a spilling seeded bin can be sized for the table while
   // holding no layer at all. Giving the slot to the last *non-zero* share instead moved the table
@@ -1413,8 +1411,8 @@ function tsNote(split: TensorSplit, ngl: number): string {
     (layers === 0
       ? `carries the output tensor and no layer at all, which is the share it was priced for`
       : `carries the output tensor on top of its ${layers}`) +
-    `. The default divides by device memory instead, and therefore evenly ` +
-    `on identical cards, which is the wrong answer for a model whose layers cache different amounts.`
+    `. Without -ts, llama.cpp divides by current free device memory instead; even identical cards ` +
+    `cannot reproduce an even layer split because this window has the output slot as its remainder.`
   );
 }
 
