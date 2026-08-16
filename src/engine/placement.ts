@@ -872,8 +872,6 @@ export function planPlacement(
   // parallel runtimes spill weight shards, not layers, so retain their existing whole-weight
   // accounting rather than applying a llama.cpp-specific floor to their launch commands.
   const hostKvFallback = canOffload && runtime.parallelism === 'layer';
-  const unpricedHostKv =
-    hostKvFallback && bins.some((bin) => overflowOf(bin) >= bin.layerWeightBytes);
   const spilledOf = (bin: DeviceLoad) =>
     canOffload
       ? Math.min(overflowOf(bin), hostKvFallback ? bin.layerWeightBytes : bin.weightBytes)
@@ -940,7 +938,6 @@ export function planPlacement(
       Math.min(bin.layers, Math.floor((resident / bin.layerWeightBytes) * bin.layers))
     );
   };
-
   const shares: DeviceShare[] = bins.map((bin) => ({
     deviceCount: binsPerEntry,
     layers: bin.layers,
@@ -961,6 +958,12 @@ export function planPlacement(
         ? shares.reduce((sum, s) => sum + s.deviceCount * s.residentLayers, 0)
         : shares.reduce((min, s) => Math.min(min, s.residentLayers), model.layers),
   };
+
+  // This must follow the rounded per-share layer count that the launch assignment emits, rather than
+  // an aggregate weight boundary. A card can have room for a fraction of one repeating layer; that
+  // layer's KV moves to host RAM, making GPU-speed estimates invalid.
+  const unpricedHostKv =
+    hostKvFallback && bins.some((bin) => overflowOf(bin) > 0 && residentLayersOf(bin) === 0);
 
   const cpuOnlyFallback = bins.every((bin) => residentLayersOf(bin) === 0);
   // `layerSplitBins` can balance hybrid layers by their individual KV costs, but llama.cpp can only

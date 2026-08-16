@@ -573,7 +573,9 @@ describe('layer splits are sized, not divided', () => {
       const roomy = plan(RTX_5090);
       expect(roomy.fits).toBe(true);
 
-      const deficit = 0.25 * GIB;
+      // Keep one of each two-layer share resident; this test exercises ordinary weight spill,
+      // rather than the rounded zero-layer host-KV fallback.
+      const deficit = 0.1 * GIB;
       const tight: DeviceSpec = {
         ...RTX_5090,
         allocatableBytes: roomy.usedBytesPerDevice - deficit,
@@ -592,8 +594,8 @@ describe('layer splits are sized, not divided', () => {
       // What the two readings say about the same rig. The busiest card holds 4% of the model's
       // weights, so expressing its overflow as a fraction of *those* put almost the whole model on
       // the host bus — eight times the streamed volume, straight onto decode and TTFT together.
-      expect(perDeviceFraction(spilling)).toBeGreaterThan(0.85);
-      expect(spilling.offloadFraction).toBeLessThan(0.12);
+      expect(perDeviceFraction(spilling)).toBeGreaterThan(0.35);
+      expect(spilling.offloadFraction).toBeLessThan(0.05);
     });
 
     it('holds on real hardware, where every card spills but by different amounts', () => {
@@ -1485,7 +1487,7 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
       expect(p.assignment.residentLayers).toBeGreaterThan(0);
     });
 
-    it('marks the exact zero-layer boundary as unpriced', () => {
+    it('marks the rounded zero-layer interval as unpriced', () => {
       const baseline = planPlacement(
         LLAMA_32_3B,
         quant,
@@ -1493,10 +1495,13 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
         { device: RTX_5080, count: 1 },
         runtime
       );
+      const { layerBytes } = weightBreakdown(LLAMA_32_3B, quant);
       const device = {
         ...RTX_5080,
         allocatableBytes:
-          baseline.usedBytesPerDevice - weightBreakdown(LLAMA_32_3B, quant).layerBytes,
+          // Leave less than one layer's weight resident: this is below the old all-layer-spilled
+          // boundary but still makes `gpuLayers()` emit `-ngl 0`.
+          baseline.usedBytesPerDevice - layerBytes + layerBytes / (2 * LLAMA_32_3B.layers),
       };
       const p = planPlacement(LLAMA_32_3B, quant, usage(1024), { device, count: 1 }, runtime);
 
