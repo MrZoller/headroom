@@ -35,7 +35,7 @@ those gates literally.)
 - [x] T7 (major) — Define and surface honest device pricing (Fixes #205)
   - acceptance: device price semantics, date, source, USD/pre-tax labeling, multi-device presentation, and unavailable or stale cases are documented in the catalog contract; selected UI and prerender surfaces expose supported prices without implying a full-system or current street price; announced, rumored, discontinued, datacenter, and CPU-RAM rows have tested honest fallbacks; price-based ranking remains out of scope
   - deps: none
-- [ ] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
+- [~] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
   - acceptance: server output and the client's first render omit the cross-catalog Matrix consistently, then populate it without hydration warnings or geometry regressions; raw route HTML retains the selected device-model fit, memory, prefill, and decode figures; build measurements demonstrate the expected per-page and total output reduction and existing prerender/e2e guards pass
   - deps: none
 - [!] T9 (trivial) — parked review minors (batch)
