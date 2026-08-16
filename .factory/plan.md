@@ -32,7 +32,7 @@ those gates literally.)
 - [x] T6 (standard) — Emit tensor splits for reproducibly even placements (Fixes #207)
   - acceptance: the population still reaching the even-split suppression gate is re-measured against current `main` and current llama.cpp behavior; `src/lib/launch.ts` emits `-ts` whenever omission would diverge from the engine's placement, using the current last-share output-slot rule; tests derive expected devices from engine accounting rather than restating emitter logic
   - deps: none
-- [~] T7 (major) — Define and surface honest device pricing (Fixes #205)
+- [R] T7 (major) — Define and surface honest device pricing (Fixes #205)
   - acceptance: device price semantics, date, source, USD/pre-tax labeling, multi-device presentation, and unavailable or stale cases are documented in the catalog contract; selected UI and prerender surfaces expose supported prices without implying a full-system or current street price; announced, rumored, discontinued, datacenter, and CPU-RAM rows have tested honest fallbacks; price-based ranking remains out of scope
   - deps: none
 - [ ] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
