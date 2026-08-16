@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T8",
-  "branch": "factory/t8-defer-matrix",
-  "pr": 226,
-  "hold": true,
-  "updated": "2026-08-16T15:40:59Z"
+  "current_task": null,
+  "branch": null,
+  "pr": null,
+  "hold": false,
+  "updated": "2026-08-16T16:28:21Z"
 }

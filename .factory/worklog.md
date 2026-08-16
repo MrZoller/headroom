@@ -112,6 +112,13 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - Opened held major-task PR [#225](https://github.com/MrZoller/headroom/pull/225) at head `6798ae4159159e075a14ea5b5e8efe5eacb8c6aa`. First shepherd pass found both CI runs and Claude Code Review in progress; Codex has an active 👀 reaction and no verdict yet. There are no comments, reviews, threads, findings, or repository hold label. Durable `state.hold: true` and the major classification enforce the hold; human merge authority is required after automation completes.
 - `factory-git push-bookkeeping` was rejected because remote `main` moved or branch protection refused the direct update. Per protocol it was not retried; held-task state remains durable in this clone and will reach the remote through the normal merge topology.
 
+## 2026-08-16 — T8 merged
+
+- Held major PR [#226](https://github.com/MrZoller/headroom/pull/226) was manually squash-merged at head `3946e5b4c699e77158112376edab194b7d801f11` as `1c7238b`; its branch was deleted.
+- CI build/browser checks and the Claude Code Review workflow passed on the merged head. All five review threads were addressed before merge: two verified blocking geometry defects were fixed, two verified minors were parked in T9, and the `calc()` concern was refuted after confirming Tailwind emits valid operator spacing. Repository thread rules required every thread to be resolved.
+- Initialized the late-verdict cursor at four bot review/comment verdicts, all present before merge; no late verdict exists to triage. Marked T8 complete and cleared its recorded task, branch, PR, and hold state.
+- Shepherd verification: `gh pr view 226 --json state,mergedAt,headRefOid,statusCheckRollup,reviews,comments`; `gh run list --workflow=claude-code-review.yml --commit 3946e5b4c699e77158112376edab194b7d801f11`; review-thread GraphQL query.
+
 ## 2026-08-16 — T7 merged
 
 - Held major PR [#225](https://github.com/MrZoller/headroom/pull/225) was manually squash-merged at verified head `4187cabe89892b58b193f95249aa01c1c3ce0594` as `12c56e1`; its branch was deleted.
