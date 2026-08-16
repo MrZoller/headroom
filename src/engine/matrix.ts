@@ -54,6 +54,8 @@ export interface MatrixCell {
   evaluated: boolean;
   /** Why not, when it does not. */
   blockedBy?: string;
+  /** True when llama.cpp needs host-side KV which the performance model cannot price. */
+  unpricedHostKv?: boolean;
   /**
    * Set when the cell is over the *default* allocation on a machine that lets you raise it.
    *
@@ -120,7 +122,7 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
       const rig = { device, count: deviceCount };
       const placement = planPlacement(model, quant, cellUsage, rig, runtime);
 
-      if (placement.unsupported || placement.impossible) {
+      if (placement.unsupported || placement.impossible || placement.unpricedHostKv) {
         // Shared with the Bench's banner, which asks the same question of a single placement — see
         // `wasEvaluated`. Absent an `unsupported`, the bytes were counted and came up short, so the
         // cell's verdict did come from whatever format the row was scored at.
@@ -133,13 +135,30 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
 
         return {
           ...base,
-          runs: false,
+          // Host-KV fallback is runnable only when its post-fallback floor fits; its timing is
+          // deliberately withheld below.
+          runs:
+            placement.unsupported === undefined &&
+            !placement.impossible &&
+            placement.unpricedHostKv,
           evaluated,
           blockedBy:
-            placement.unsupported ?? (raiseable ? 'Past the default allocation' : 'Does not fit'),
+            placement.unsupported ??
+            (placement.impossible
+              ? raiseable
+                ? 'Past the default allocation'
+                : 'Does not fit'
+              : placement.unpricedHostKv
+                ? 'Requires host-side KV that Headroom cannot model'
+                : raiseable
+                  ? 'Past the default allocation'
+                  : 'Does not fit'),
+          ...(placement.unpricedHostKv ? { unpricedHostKv: true } : {}),
           ...(raiseable ? { raiseCeilingWouldHelp: true } : {}),
           utilization: placement.utilization,
-          offloadFraction: 0,
+          // This state still sheds repeating layers; retain that fact for the Matrix summary even
+          // though its performance readings stay off the scale below.
+          offloadFraction: placement.offloadFraction,
           tokensPerSec: 0,
           ttftSeconds: 0,
         };
@@ -174,7 +193,7 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
  * some theoretical maximum tells you nothing about which to buy.
  */
 export function measureValue(cell: MatrixCell, measure: MatrixMeasure): number | undefined {
-  if (!cell.runs) return undefined;
+  if (!cell.runs || cell.unpricedHostKv) return undefined;
   // An offloaded fit scores below any resident one — a categorical answer rather than a degree,
   // since the weights are crossing the bus whatever the headroom arithmetic says.
   if (measure === 'fit' && cell.offloadFraction > 0) return 0;

@@ -455,6 +455,25 @@ function residencyNote(input: LaunchInput): readonly string[] {
   ];
 }
 
+/** Guidance for the runnable placement whose host-side KV cost the roofline cannot price. */
+function hostKvFallbackNote(input: LaunchInput): readonly string[] {
+  if (!input.placement.unpricedHostKv) return [];
+
+  if (gpuLayers(input) === 0) {
+    return [
+      `This command uses -ngl 0, so it runs entirely from host RAM rather than keeping the pinned ` +
+        `output tensor on a GPU. Headroom does not check that host capacity or model this execution, ` +
+        `so the speed figures above do not describe this command.`,
+    ];
+  }
+
+  return [
+    `This command runs by leaving the shed layers and their KV cache in host RAM so the pinned ` +
+      `output tensor still fits on its card. Headroom does not check that host capacity or model ` +
+      `the mixed CPU/GPU execution, so the speed figures above do not describe this command.`,
+  ];
+}
+
 /**
  * The weights the cards do not hold, or nothing where that is not a claim about this rig.
  *
@@ -741,6 +760,13 @@ const LAUNCHERS: Record<string, readonly Launcher[]> = {
 function placementRefusal(input: LaunchInput): string | undefined {
   const { placement } = input;
   if (placement.unsupported !== undefined) return placement.unsupported;
+  if (placement.unexpressibleHostKvFallback) {
+    return (
+      `This configuration does not run on ${input.rig.device.name}: Headroom's host-KV fallback ` +
+      `requires a hybrid-layer placement that llama.cpp cannot express. Choose more VRAM or a ` +
+      `smaller context or concurrency.`
+    );
+  }
   if (placement.impossible) {
     /**
      * **Two different failures wear one flag, and the first draft named only the first** (raised by
@@ -754,6 +780,13 @@ function placementRefusal(input: LaunchInput): string | undefined {
      * carried on `Placement` precisely so a sentence and its predicate read one value.
      */
     const machine = input.rig.device.name;
+    if (placement.unpricedHostKv) {
+      return (
+        `This configuration does not run on ${machine}: its pinned tensors, resident cache, and ` +
+        `overhead are over the ceiling. Lowering context or concurrency helps only if cache is the ` +
+        `binding part; otherwise choose a narrower format, a smaller model, or more VRAM.`
+      );
+    }
     return placement.floorBytesPerDevice > placement.allocatableBytesPerDevice
       ? `This configuration does not run on ${machine}: the cache and activations alone are over ` +
           `the ceiling, so no flag rescues it. Lower the context or the concurrency and the ` +
@@ -813,6 +846,7 @@ function llamaServer(input: LaunchInput): Pair {
       `thing here you are meant to replace.`,
     ...(split === undefined ? packingNotes(input) : []),
     ...(split === undefined ? [] : [tsNote(split, ngl)]),
+    ...hostKvFallbackNote(input),
     ...residencyNote(input),
   ];
 
@@ -873,6 +907,7 @@ function llamaBench(input: LaunchInput): Pair {
       `decides the number, and a window's worth of generation is minutes of wall clock per ` +
       `repetition, five times over.`,
     nglNote(input, ngl),
+    ...hostKvFallbackNote(input),
     // The same sweep the `-ts` flag itself needed on this launcher: a measurement run at
     // llama.cpp's default split times a different placement from the one priced, and that is as
     // true when Headroom cannot express its split as when it declines to repeat an even one. Saying
@@ -1060,6 +1095,7 @@ function ollama(input: LaunchInput): Pair {
     // All three hang off the one `llama.cpp` runtime row, so the budget the panel above shows is
     // reduced here too — and this block used to be the one that did not say so.
     ...ollamaResidencyNote(input),
+    ...hostKvFallbackNote(input),
   ];
 
   return {

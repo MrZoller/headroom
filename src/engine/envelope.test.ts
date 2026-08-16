@@ -53,6 +53,7 @@ const RANK: Record<CellState, number> = {
   comfortable: 3,
   tight: 2,
   offloaded: 1,
+  unpriced: 1,
   over: 0,
   unsupported: 0,
 };
@@ -206,17 +207,16 @@ describe('the feasibility region', () => {
     expect(closed.every((c) => c.overBecause === 'capacity')).toBe(true);
   });
 
-  it('still blames the hardware when the ceiling is not the thing in the way', () => {
-    // A 32 GiB card with a fixed ceiling: raising a setting cannot help.
+  it('marks host-KV fallback as unpriced instead of inventing speed figures', () => {
     const grid = envelope({
       model: DEEPSEEK_V3,
       quant: getQuant('q8_0'),
       rig: { device: RTX_5090, count: 1 },
     });
 
-    const closed = grid.cells.flat().filter((c) => c.state === 'over');
-    expect(closed.length).toBeGreaterThan(0);
-    expect(closed.every((c) => c.overBecause === 'capacity')).toBe(true);
+    const unpriced = grid.cells.flat().filter((c) => c.state === 'unpriced');
+    expect(unpriced.length).toBeGreaterThan(0);
+    expect(unpriced.every((c) => c.tokensPerSec === 0 && c.ttftSeconds === 0)).toBe(true);
   });
 
   it('calls out offload separately from merely being tight', () => {

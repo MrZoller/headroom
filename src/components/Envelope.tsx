@@ -102,6 +102,11 @@ const STATE_STYLE: Record<CellState, { fill?: string; label: string; hint: strin
      */
     hint: `${HOST_RAM_UNCHECKED} What does spill crosses the bus every token.`,
   },
+  unpriced: {
+    fill: colors.warning,
+    label: 'Unmodelled host KV',
+    hint: 'Runs with shed layers and KV cache in host RAM; speed is not modelled.',
+  },
   over: { fill: colors.critical, label: 'Will not run', hint: 'Past what this hardware can hold.' },
   unsupported: {
     fill: colors.critical,
@@ -894,6 +899,8 @@ function describe(
       // The inline-clause register of the qualifier — the constant's sentence-initial "Loads"
       // cannot sit mid-list; the legend hint above carries the full-sentence form.
       `${counts.offloaded} run only by spilling weights to host RAM, ${HOST_RAM_UNCHECKED_BRIEF}`,
+    (counts.unpriced ?? 0) > 0 &&
+      `${counts.unpriced} run with layers and KV in host RAM, so performance is not modelled`,
   ].filter((s): s is string => typeof s === 'string');
   /**
    * What the colour means, which a sighted reader gets from the ramp and the toggle's caption.
@@ -1007,6 +1014,7 @@ function describeCell(cell: EnvelopeCell): string {
     return cell.overBecause === 'allocation' ? PAST_DEFAULT_ALLOCATION : STATE_STYLE.over.label;
   }
   if (cell.state === 'unsupported') return STATE_STYLE.unsupported.label;
+  if (cell.state === 'unpriced') return STATE_STYLE.unpriced.label;
   const why =
     cell.tightBecause === 'capacity'
       ? ' (near the ceiling)'

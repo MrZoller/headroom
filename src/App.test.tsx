@@ -207,14 +207,11 @@ describe('the Bench does not overclaim', () => {
   });
 
   /**
-   * `impossible` asks every device whether its cache and activations alone are over the ceiling,
-   * because under a layer split the busiest card by *combined* load is not necessarily the one
-   * holding the most cache. The sentence explaining the refusal has to quote the device that caused
-   * it — rebuilt from this bar's own per-device figures it named the card being drawn, which is a
-   * different card, and printed a figure comfortably *under* the ceiling it was citing as the
-   * reason. A predicate and its sentence are one claim.
+   * A hybrid layer split can balance different KV sizes only by a non-contiguous assignment, while
+   * llama.cpp can express only contiguous ranges. Do not label the engine's optimistic host-KV
+   * fallback as runnable when the command would use a different placement.
    */
-  it('quotes the card that made it impossible, and says it is not the one being drawn', async () => {
+  it('refuses an unexpressible hybrid host-KV fallback', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -237,18 +234,16 @@ describe('the Bench does not overclaim', () => {
       useConfig.getState().set('deviceCount', 3);
     });
 
-    // The refusal names the card it belongs to rather than implying the one above it — "the card
-    // holding the most cache", not "the busiest card", because the engine's busiest device is
-    // busiest by combined load and in this split is the one being drawn. Its quantity is named in
-    // full: `floorBytesPerDevice` is cache plus activations, the term the segments label
-    // Overhead, with a tail whose subject is that singular figure. The shared tail it replaced
-    // counted a pair ("and neither can be offloaded") this branch never names (#128).
-    expect(
-      screen.getByText(/the card holding the most cache needs .* of cache and overhead/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/which cannot be offloaded/i)).toBeInTheDocument();
-    expect(screen.queryByText(/neither can be offloaded/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/the cache and overhead alone need/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Will not run')).toHaveLength(4);
+
+    const verdicts = screen.getByRole('region', { name: 'Verdicts' });
+    expect(within(verdicts).getAllByText('Will not run')).toHaveLength(3);
+    expect(within(verdicts).queryByText('Not modelled')).not.toBeInTheDocument();
+    expect(within(verdicts).queryByText(/tok\/s per user/i)).not.toBeInTheDocument();
+
+    const budget = screen.getByRole('region', { name: /memory budget/i });
+    expect(budget).toHaveTextContent(/cannot express the host-KV layer split/i);
+    expect(budget).not.toHaveTextContent(/post-fallback device floor needs/i);
   });
 
   it('explains a full card as a full card, not as a Mac', async () => {

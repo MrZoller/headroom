@@ -14,6 +14,7 @@ import {
   MLX,
   QWEN3_32B,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   VLLM,
 } from '@/engine/fixtures';
@@ -1317,9 +1318,7 @@ describe('a placement the engine refused produces no commands at all', () => {
     }
   });
 
-  it('refuses an impossible placement, where no flag rescues the arithmetic', () => {
-    // Cache and activations alone over the ceiling: offload cannot move them, so a command would
-    // OOM on load however it were flagged.
+  it('keeps a host-KV fallback command runnable but warns that it is unmodelled', () => {
     const over = input(
       DEEPSEEK_V3,
       getQuant('q4_k_m'),
@@ -1328,11 +1327,28 @@ describe('a placement the engine refused produces no commands at all', () => {
       1,
       usage({ contextTokens: 131072, concurrency: 64 })
     );
-    expect(over.placement.impossible).toBe(true);
+    expect(over.placement.impossible).toBe(false);
+    expect(over.placement.unpricedHostKv).toBe(true);
 
-    for (const c of launchCommands(over)) {
-      expect(reason(c.serve)).toMatch(/does not run/i);
-    }
+    const serve = commands(over)['llama-server'].serve;
+    if (!serve.ok) throw new Error('unreachable');
+    expect(serve.text).toContain('-ngl 0');
+    expect(serve.notes.join(' ')).toMatch(/runs entirely from host RAM/i);
+    expect(serve.notes.join(' ')).not.toMatch(/pinned output tensor still fits on its card/i);
+  });
+
+  it('refuses a hybrid host-KV fallback that llama.cpp cannot express', () => {
+    const over = input(
+      GEMMA_3_12B,
+      getQuant('q8_0'),
+      LLAMA_CPP,
+      RTX_4090,
+      3,
+      usage({ contextTokens: 131072, concurrency: 8 })
+    );
+    expect(over.placement.unexpressibleHostKvFallback).toBe(true);
+
+    expect(reason(commands(over)['llama-server'].serve)).toMatch(/cannot express/i);
   });
 
   it('emits nothing for a runtime with no launcher registered', () => {
@@ -1406,8 +1422,7 @@ describe('what review found, kept as tests', () => {
     expect(refused).not.toMatch(/cache and activations alone/i);
   });
 
-  it('still blames the cache when the cache really is what is over', () => {
-    // The other arm, so the split above is a split rather than a rewording.
+  it('does not present an all-device cache OOM after host-KV fallback', () => {
     const cacheBound = input(
       DEEPSEEK_V3,
       getQuant('q4_k_m'),
@@ -1417,10 +1432,10 @@ describe('what review found, kept as tests', () => {
       usage({ contextTokens: 131072, concurrency: 64 })
     );
 
-    expect(cacheBound.placement.floorBytesPerDevice).toBeGreaterThan(
-      cacheBound.placement.allocatableBytesPerDevice
-    );
-    expect(reason(commands(cacheBound)['llama-server'].serve)).toMatch(/cache and activations/i);
+    expect(cacheBound.placement.unpricedHostKv).toBe(true);
+    const serve = commands(cacheBound)['llama-server'].serve;
+    if (!serve.ok) throw new Error('unreachable');
+    expect(serve.notes.join(' ')).toMatch(/does not check that host capacity/i);
   });
 
   it('never writes to a bare Modelfile, which is the reader’s own', () => {
@@ -1630,6 +1645,40 @@ describe('what review found, kept as tests', () => {
   it('measures vLLM at the configured user count, not the client’s default of 8', () => {
     const many = input(DEEPSEEK_V3, getQuant('fp8'), VLLM, RTX_5090, 8, usage({ concurrency: 16 }));
     expect(text(commands(many).vllm.measure)).toContain('--batch-size 16');
+  });
+
+  describe('host KV fallback guidance', () => {
+    const runtime = LLAMA_CPP;
+    const quant = getQuant('bf16');
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage({ contextTokens: 128 * 1024, concurrency: 4 });
+
+    it('emits reproducible llama.cpp commands with an explicit unpriced warning', () => {
+      const p = planPlacement(LLAMA_32_3B, quant, usageSpec, config, runtime);
+      expect(p.unpricedHostKv).toBe(true);
+
+      const many = input(LLAMA_32_3B, quant, runtime, config.device, config.count, usageSpec);
+      const emitted = commands(many);
+
+      expect(emitted['llama-server'].serve.ok).toBe(true);
+      expect(emitted['llama-bench'].measure.ok).toBe(true);
+      expect(text(emitted['llama-server'].serve)).toContain('-ngl 4');
+      if (!emitted['llama-server'].serve.ok) throw new Error('unreachable');
+      expect(emitted['llama-server'].serve.notes.join(' ')).toMatch(
+        /card 4 carries the output tensor and no layer at all/i
+      );
+      for (const emission of [emitted['llama-server'].serve, emitted['llama-bench'].measure]) {
+        if (!emission.ok) throw new Error(emission.reason);
+        const notes = emission.notes.join(' ');
+        expect(notes).toMatch(/shed layers and their KV cache in host RAM/i);
+        expect(notes).toMatch(/does not check that host capacity/i);
+        expect(notes).toMatch(/speed figures above do not describe this command/i);
+        expect(notes).not.toMatch(/does not run/i);
+      }
+    });
   });
 });
 

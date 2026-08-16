@@ -24,6 +24,7 @@ const FITNESS: Record<Fitness, { icon: string; word: string; color: string }> = 
   good: { icon: '●', word: 'Yes', color: 'var(--color-good)' },
   tight: { icon: '◐', word: 'Tight', color: 'var(--color-warning)' },
   fail: { icon: '○', word: 'No', color: 'var(--color-critical)' },
+  unmeasured: { icon: '–', word: 'Not measured', color: 'var(--color-text-muted)' },
 };
 
 export function Workloads({ evaluation, config }: { evaluation: Evaluation; config: Config }) {
@@ -94,7 +95,7 @@ export function Workloads({ evaluation, config }: { evaluation: Evaluation; conf
    * and the count below still qualifies its noun when the two differ — which is the assertion that
    * would catch a fourth grade arriving without this being reconsidered.
    */
-  const graded = verdicts;
+  const graded = verdicts.filter((v) => v.fitness !== 'unmeasured');
   const usable = graded.filter((v) => v.fitness !== 'fail').length;
 
   /**
@@ -108,9 +109,12 @@ export function Workloads({ evaluation, config }: { evaluation: Evaluation; conf
    * grades all seven `fail`.
    */
   const sharedReason =
-    verdicts.every((v) => v.fitness === 'fail') && new Set(verdicts.map((v) => v.reason)).size === 1
+    new Set(verdicts.map((v) => v.reason)).size === 1 &&
+    verdicts.every((v) => v.fitness === 'fail' || v.fitness === 'unmeasured')
       ? verdicts[0].reason
       : undefined;
+  const sharedUnmeasured =
+    sharedReason !== undefined && verdicts.every((v) => v.fitness === 'unmeasured');
 
   return (
     <section aria-labelledby={headingId} className="panel p-[min(1.25rem,5vw)]">
@@ -129,14 +133,22 @@ export function Workloads({ evaluation, config }: { evaluation: Evaluation; conf
           re-derived by whoever adds a grade this panel cannot count. `App.test.tsx` pins the live
           branch — seven of seven, unqualified — so the dead one cannot rot into a wrong string.
         */}
-        <PanelCount count={usable} total={graded.length}>
-          {graded.length === verdicts.length ? 'workloads' : 'measured workloads'}
-        </PanelCount>
+        {graded.length > 0 ? (
+          <PanelCount count={usable} total={graded.length}>
+            {graded.length === verdicts.length ? 'workloads' : 'measured workloads'}
+          </PanelCount>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">Performance not measured</p>
+        )}
       </header>
 
       {sharedReason && (
-        <p className="mt-3 text-sm text-[var(--color-critical)]">
-          <span aria-hidden="true">▲ </span>
+        <p
+          className={`mt-3 text-sm ${
+            sharedUnmeasured ? 'text-[var(--color-warning)]' : 'text-[var(--color-critical)]'
+          }`}
+        >
+          <span aria-hidden="true">{sharedUnmeasured ? '◐ ' : '▲ '}</span>
           {sharedReason}
         </p>
       )}

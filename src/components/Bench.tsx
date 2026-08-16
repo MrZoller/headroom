@@ -182,6 +182,8 @@ export function Bench() {
 
   /** Whether the configuration runs at all. */
   const runnable = !evaluation.placement.unsupported && !evaluation.placement.impossible;
+  /** Whether its numeric speed estimates describe the runnable configuration. */
+  const speedModelled = runnable && !evaluation.placement.unpricedHostKv;
   /**
    * Whether a *speed* claim is defensible — a stricter question than whether it runs, and one I
    * have now got wrong in three different ways.
@@ -193,7 +195,7 @@ export function Bench() {
    * claiming "fast" across the 15-30 band that the tile calls merely "Usable" — the fifth way
    * this one sentence has managed to contradict the number printed beside it.
    */
-  const fast = runnable && classifyDecode(evaluation.decode.perUserTokensPerSec).isFast;
+  const fast = speedModelled && classifyDecode(evaluation.decode.perUserTokensPerSec).isFast;
   /**
    * Sharding needs a transport between devices, which is what `interconnect` records — not the
    * device class. Keying off the class disabled it for the DGX Spark, whose catalog row
@@ -742,7 +744,7 @@ export function Bench() {
               {params(effectiveActiveParams(model, 1))}
             </strong>
             {/*
-              Every branch below reads a decode estimate, so all of them are gated on `runnable`
+               Every branch below reads a decode estimate, so all of them are gated on `speedModelled`
               — not just `fast`. When the runtime cannot drive the device or the model cannot be
               placed, `evaluate` still returns numbers, and they describe nothing: an unsupported
               MLX-on-5090 selection blamed host-bus spill, and a vLLM-on-Mac one pointed at a
@@ -751,20 +753,22 @@ export function Bench() {
             */}
             {!runnable
               ? '. Whether that is fast is not a question this configuration reaches — it does not run as selected.'
-              : fast
-                ? ', so it decodes at roughly that model size rather than its full one.'
-                : evaluation.placement.offloadFraction > 0
-                  ? // Only claimed when the engine's own resident estimate agrees: a model can
-                    // spill *and* still be slow with everything resident, and blaming the spill
-                    // then sends someone to buy memory that will not fix it.
-                    classifyDecode(
-                      evaluation.decode.offloadPenalty?.withoutOffloadTokensPerSec ?? 0
-                    ).isFast
-                    ? `. That would make it fast — but not here, with ${percent(
-                        evaluation.placement.offloadFraction
-                      )} of the weights crossing the host bus every token.`
-                    : '. Even resident it would be slow here, so fitting it is not the whole story.'
-                  : '. Whether that is fast depends on the memory it is reading from, which the decode figure above measures.'}{' '}
+              : !speedModelled
+                ? '. Whether that is fast is not modelled when its KV cache must live in host RAM.'
+                : fast
+                  ? ', so it decodes at roughly that model size rather than its full one.'
+                  : evaluation.placement.offloadFraction > 0
+                    ? // Only claimed when the engine's own resident estimate agrees: a model can
+                      // spill *and* still be slow with everything resident, and blaming the spill
+                      // then sends someone to buy memory that will not fix it.
+                      classifyDecode(
+                        evaluation.decode.offloadPenalty?.withoutOffloadTokensPerSec ?? 0
+                      ).isFast
+                      ? `. That would make it fast — but not here, with ${percent(
+                          evaluation.placement.offloadFraction
+                        )} of the weights crossing the host bus every token.`
+                      : '. Even resident it would be slow here, so fitting it is not the whole story.'
+                    : '. Whether that is fast depends on the memory it is reading from, which the decode figure above measures.'}{' '}
             Total parameters set what fits; active parameters set how fast it feels.
           </p>
           {model.experts && (

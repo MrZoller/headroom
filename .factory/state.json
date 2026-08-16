@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T3",
-  "branch": "factory/t3-harden-catalog-refresh",
-  "pr": null,
-  "hold": false,
-  "updated": "2026-08-15T22:49:22Z"
+  "current_task": "T4",
+  "branch": "factory/t4-pinned-placement-floor",
+  "pr": 221,
+  "hold": true,
+  "updated": "2026-08-16T00:20:56Z"
 }

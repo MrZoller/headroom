@@ -23,6 +23,7 @@ import {
   MLX,
   QWEN3_32B,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   STRIX_HALO_395,
   VLLM,
@@ -572,7 +573,9 @@ describe('layer splits are sized, not divided', () => {
       const roomy = plan(RTX_5090);
       expect(roomy.fits).toBe(true);
 
-      const deficit = 0.25 * GIB;
+      // Keep one of each two-layer share resident; this test exercises ordinary weight spill,
+      // rather than the rounded zero-layer host-KV fallback.
+      const deficit = 0.1 * GIB;
       const tight: DeviceSpec = {
         ...RTX_5090,
         allocatableBytes: roomy.usedBytesPerDevice - deficit,
@@ -591,8 +594,8 @@ describe('layer splits are sized, not divided', () => {
       // What the two readings say about the same rig. The busiest card holds 4% of the model's
       // weights, so expressing its overflow as a fraction of *those* put almost the whole model on
       // the host bus — eight times the streamed volume, straight onto decode and TTFT together.
-      expect(perDeviceFraction(spilling)).toBeGreaterThan(0.85);
-      expect(spilling.offloadFraction).toBeLessThan(0.12);
+      expect(perDeviceFraction(spilling)).toBeGreaterThan(0.35);
+      expect(spilling.offloadFraction).toBeLessThan(0.05);
     });
 
     it('holds on real hardware, where every card spills but by different amounts', () => {
@@ -671,7 +674,7 @@ describe('layer splits are sized, not divided', () => {
      * used to be true by construction that an impossible offloadable rig had *the busiest device's*
      * cache over the ceiling, so BudgetBar could rebuild the figure from `kvBytesPerDevice`.
      */
-    it('names the device that made it impossible, not the one the readout describes', () => {
+    it('refuses a hybrid host-KV fallback whose packed placement cannot be emitted', () => {
       // Gemma 3 12B over three 4090s at 128K and 8 users: the packing gives two cards seven and
       // eight layers against the third's thirty-three, so the busiest card by combined load is the
       // one with the *least* cache.
@@ -691,15 +694,11 @@ describe('layer splits are sized, not divided', () => {
         LLAMA_CPP
       );
 
+      // The greedy cache-balanced assignment cannot be represented by llama.cpp's contiguous -ts
+      // placement, so its fallback cannot safely promise a runnable command.
       expect(p.impossible).toBe(true);
-      // The floor that actually refused it is over the ceiling...
-      expect(p.floorBytesPerDevice).toBeGreaterThan(p.allocatableBytesPerDevice);
-      // ...and it is not the floor of the device this readout describes, which is comfortably
-      // under it. Rebuilding the sentence from these two fields printed a figure that disproved
-      // the refusal beside it.
-      expect(p.kvBytesPerDevice + p.activationBytesPerDevice).toBeLessThan(
-        p.allocatableBytesPerDevice
-      );
+      expect(p.unpricedHostKv).toBe(true);
+      expect(p.unexpressibleHostKvFallback).toBe(true);
     });
 
     it('keeps the floor and the busiest device together whenever every device holds the same', () => {
@@ -715,10 +714,12 @@ describe('layer splits are sized, not divided', () => {
             runtime
           );
           if (p.unsupported) continue;
-          expect(p.floorBytesPerDevice).toBeCloseTo(
-            p.kvBytesPerDevice + p.activationBytesPerDevice,
-            6
-          );
+          if (!p.unpricedHostKv) {
+            expect(p.floorBytesPerDevice).toBeCloseTo(
+              p.kvBytesPerDevice + p.activationBytesPerDevice,
+              6
+            );
+          }
         }
       }
     });
@@ -1463,5 +1464,91 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
     expect(runtime.parallelism).toBe('tensor');
     expect(p.unsupported).toBeUndefined();
     expect(p.deviceWeightBytes).toBeCloseTo(p.totalWeightBytes - table, 0);
+  });
+
+  describe('host KV fallback', () => {
+    const runtime = LLAMA_CPP;
+    const quant = getQuant('bf16');
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage(128 * 1024, 4);
+
+    it('keeps the measured 4x RTX 5080 overflow runnable but unpriced', () => {
+      const p = planPlacement(LLAMA_32_3B, quant, usageSpec, config, runtime);
+      const seeded = p.assignment.shares.at(-1);
+
+      expect(p.unsupported).toBeUndefined();
+      expect(p.fits).toBe(false);
+      expect(p.impossible).toBe(false);
+      expect(p.unpricedHostKv).toBe(true);
+      expect(seeded?.residentLayers).toBe(0);
+      expect(p.assignment.residentLayers).toBeGreaterThan(0);
+    });
+
+    it('marks the rounded zero-layer interval as unpriced', () => {
+      const baseline = planPlacement(
+        LLAMA_32_3B,
+        quant,
+        usage(1024),
+        { device: RTX_5080, count: 1 },
+        runtime
+      );
+      const { layerBytes } = weightBreakdown(LLAMA_32_3B, quant);
+      const device = {
+        ...RTX_5080,
+        allocatableBytes:
+          // Leave less than one layer's weight resident: this is below the old all-layer-spilled
+          // boundary but still makes `gpuLayers()` emit `-ngl 0`.
+          baseline.usedBytesPerDevice - layerBytes + layerBytes / (2 * LLAMA_32_3B.layers),
+      };
+      const p = planPlacement(LLAMA_32_3B, quant, usage(1024), { device, count: 1 }, runtime);
+
+      expect(p.unpricedHostKv).toBe(true);
+      expect(p.assignment.residentLayers).toBe(0);
+      expect(p.impossible).toBe(false);
+    });
+
+    it('keeps ordinary weight offload priced', () => {
+      const device = { ...RTX_5080, allocatableBytes: 4 * GIB };
+      const p = planPlacement(LLAMA_32_3B, quant, usage(8 * 1024), { device, count: 1 }, runtime);
+
+      expect(p.unsupported).toBeUndefined();
+      expect(p.fits).toBe(false);
+      expect(p.impossible).toBe(false);
+      expect(p.offloadFraction).toBeGreaterThan(0);
+      expect(p.unpricedHostKv).toBe(false);
+      expect(p.assignment.residentLayers).toBeGreaterThan(0);
+    });
+
+    it('does not retain a pinned GPU floor for the CPU-only -ngl 0 fallback', () => {
+      const device = { ...RTX_5080, allocatableBytes: 100 * 1024 ** 2 };
+      const p = planPlacement(
+        LLAMA_32_3B,
+        quant,
+        usage(128 * 1024, 4),
+        { device, count: 1 },
+        runtime
+      );
+
+      expect(p.unpricedHostKv).toBe(true);
+      expect(p.assignment.residentLayers).toBe(0);
+      expect(p.floorBytesPerDevice).toBe(0);
+      expect(p.impossible).toBe(false);
+    });
+
+    it('does not apply llama.cpp layer fallback to tensor-parallel vLLM', () => {
+      const p = planPlacement(
+        DEEPSEEK_V3,
+        getQuant('fp8'),
+        { contextTokens: 128 * 1024, concurrency: 4, kvPrecision: 'fp16' },
+        { device: RTX_5090, count: 1 },
+        VLLM
+      );
+
+      expect(p.unpricedHostKv).toBe(false);
+      expect(p.floorBytesPerDevice).toBeCloseTo(p.kvBytesPerDevice + p.activationBytesPerDevice, 6);
+    });
   });
 });

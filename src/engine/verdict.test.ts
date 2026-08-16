@@ -16,14 +16,24 @@ import {
   GPT_OSS_20B,
   DEEPSEEK_V3,
   LLAMA_31_8B,
+  LLAMA_32_3B,
   LLAMA_CPP,
   MLX,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   VLLM,
   MAC_STUDIO_M3_ULTRA_256,
 } from './fixtures';
 import { getQuant } from '@/data/quants';
+import type { UsageSpec } from './types';
+
+const usage = (contextTokens: number, concurrency = 1): UsageSpec => ({
+  contextTokens,
+  concurrency,
+  kvPrecision: 'fp16',
+});
+
 // The monotonicity sweep is about the *model*, not about a rig, so it runs the shipped catalog
 // rather than fixtures — a claim checked only on the hardware it was derived from is not checked.
 import { DEVICES, MODELS, getDevice } from '@/data/catalog';
@@ -46,6 +56,7 @@ const RESIDENT: Placement = {
   // Cache and activations, which is what `impossible` weighs against the ceiling. Well under 10.
   floorBytesPerDevice: 2,
   offloadFraction: 0,
+  unpricedHostKv: false,
   impossible: false,
   // Nothing in `verdict.ts` reads the assignment — it is the launch emitter's input (#136) — so
   // this is the shape rather than a scenario, kept consistent with the bytes above so a future
@@ -155,7 +166,7 @@ interface VerdictRig {
  * assertion in this file. That guard was written for the `unmeasured` arm and outlives it (#96):
  * `Record<Fitness, …>` makes the coverage a compile-time claim and this keeps the runtime one.
  */
-const RANK: Record<Fitness, number> = { good: 2, tight: 1, fail: 0 };
+const RANK: Record<Fitness, number> = { good: 2, tight: 1, fail: 0, unmeasured: -1 };
 const rankOf = (fitness: Fitness) => {
   const rank = RANK[fitness];
   if (rank === undefined) throw new Error(`no rank for the grade "${fitness}"`);
@@ -381,7 +392,7 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
       contextTokens: 131072,
     });
 
-    for (const verdict of crowded.values()) expect(verdict.fitness).toBe('fail');
+    for (const verdict of crowded.values()) expect(verdict.fitness).toBe('unmeasured');
     expect(new Set([...crowded.values()].map((v) => v.reason)).size).toBe(1);
   });
 
@@ -407,7 +418,7 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
       const verdicts = judge(LLAMA_31_8B, 'q4_k_m', { device: RTX_5090, concurrency });
       expect(verdicts.size).toBe(7);
       for (const verdict of verdicts.values()) {
-        expect(['good', 'tight', 'fail']).toContain(verdict.fitness);
+        expect(['good', 'tight', 'fail', 'unmeasured']).toContain(verdict.fitness);
         expect(verdict.reason.length).toBeGreaterThan(0);
       }
     }
@@ -546,6 +557,42 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
     expect(serving.fitness).toBe('tight');
     expect(serving.reason).toMatch(/holds a turn each for 2 users but not for the 4/);
     expect(serving.reason).not.toMatch(/spilling to host RAM/);
+  });
+
+  it('keeps a measurable two-user serving tier when four users require host-side KV', () => {
+    const unpricedAtFour: Placement = { ...RESIDENT, unpricedHostKv: true };
+    const serving = new Map(
+      judgeWorkloads({
+        selectedPlacement: RESIDENT,
+        usage: { contextTokens: 2048, concurrency: 1, promptTokens: 2048, kvPrecision: 'fp16' },
+        maxContextTokens: 200_000,
+        runnableContextTokens: 200_000,
+        evaluateAt: (_prompt, _context, _prefix, concurrency) => ({
+          ...STUB_SPEED,
+          placement: concurrency >= WORKLOAD_BARS.serving.good.users ? unpricedAtFour : RESIDENT,
+        }),
+      }).map((v) => [v.workload.id, v])
+    ).get('serving')!;
+
+    expect(serving.fitness).toBe('tight');
+    expect(serving.reason).toMatch(/host RAM/i);
+  });
+
+  it('reports a capacity failure when a workload is both unpriced and impossible', () => {
+    const unpricedButImpossible: Placement = { ...OVER, unpricedHostKv: true };
+    const chat = new Map(
+      judgeWorkloads({
+        selectedPlacement: RESIDENT,
+        usage: { contextTokens: 2048, concurrency: 1, promptTokens: 2048, kvPrecision: 'fp16' },
+        maxContextTokens: 200_000,
+        runnableContextTokens: 512,
+        evaluateAt: () => ({ ...STUB_SPEED, placement: unpricedButImpossible }),
+      }).map((v) => [v.workload.id, v])
+    ).get('chat')!;
+
+    expect(chat.fitness).toBe('fail');
+    expect(chat.reason).toMatch(/needs 1.5K/i);
+    expect(chat.reason).not.toMatch(/runs only by moving shed layers/i);
   });
 
   it('quotes no four-user figure at all when four users cannot run', () => {
@@ -1162,8 +1209,8 @@ describe('a verdict counts the whole request, not half of it', () => {
     const verdicts = judge(DEEPSEEK_V3, 'bf16', { device: RTX_5090, contextTokens: 512 });
     const long = verdicts.get('long-context')!;
 
-    expect(long.fitness).toBe('fail');
-    expect(long.reason).toMatch(/before saying anything|the work does not/);
+    expect(['fail', 'unmeasured']).toContain(long.fitness);
+    expect(long.reason).toMatch(/before saying anything|the work does not|host RAM/);
   });
 
   /**
@@ -1180,9 +1227,9 @@ describe('a verdict counts the whole request, not half of it', () => {
         contextTokens: 512,
       }).get('long-context')!;
 
-      expect(long.fitness).toBe('fail');
+      expect(['fail', 'unmeasured']).toContain(long.fitness);
       // Whatever the row says, the grade has to have been decided on the same measurement.
-      expect(long.reason).toMatch(/before saying anything|the work does not/);
+      expect(long.reason).toMatch(/before saying anything|the work does not|host RAM/);
     }
   );
 
@@ -2036,5 +2083,32 @@ describe('only the agent grades its prompt against a resident session', () => {
     expect(agent.reason).not.toMatch(/against the (64K|48K)/);
     // Never "re-read": not re-reading the session is the whole point of a cached prefix.
     expect(agent.reason).not.toMatch(/re-read/);
+  });
+
+  describe('host KV fallback verdict', () => {
+    const runtime = LLAMA_CPP;
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage(128 * 1024, 4);
+
+    it('says the placement runs but cannot be graded by the current roofline', () => {
+      const verdicts = judge(LLAMA_32_3B, 'bf16', {
+        device: config.device,
+        count: config.count,
+        runtime,
+        contextTokens: usageSpec.contextTokens,
+        concurrency: usageSpec.concurrency,
+      });
+
+      for (const verdict of verdicts.values()) {
+        expect(verdict.fitness).toBe('unmeasured');
+        expect(verdict.reason).toMatch(/runs only by moving shed layers and their KV cache/i);
+        expect(verdict.reason).toMatch(/cannot grade performance/i);
+        expect(verdict.reason).not.toMatch(/does not fit|cannot spill|does not run|\bOOM\b/i);
+        expect(verdict.reason).not.toMatch(/tok\/s/);
+      }
+    });
   });
 });

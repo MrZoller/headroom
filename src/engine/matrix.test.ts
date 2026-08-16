@@ -11,9 +11,12 @@ import {
   DGX_SPARK,
   MAC_STUDIO_M3_ULTRA_256,
   MAC_STUDIO_M3_ULTRA_512,
+  LLAMA_32_3B,
+  RTX_5080,
 } from './fixtures';
 import { LLAMA_CPP, MLX } from './fixtures';
 import { MEASURE_DIRECTION } from './measure';
+import { GIB } from './types';
 
 const USAGE = {
   contextTokens: 8192,
@@ -56,6 +59,40 @@ describe('the model-by-device grid', () => {
         expect(measureValue(cell, measure)).toBeUndefined();
       }
     }
+  });
+
+  it('withholds numeric readings for a host-KV fallback', () => {
+    const [[cell]] = computeMatrix({
+      models: [LLAMA_32_3B],
+      devices: [RTX_5080],
+      quantFor: () => getQuant('bf16'),
+      runtime: LLAMA_CPP,
+      usage: { contextTokens: 128 * 1024, concurrency: 4, kvPrecision: 'fp16' },
+      deviceCount: 4,
+    });
+
+    expect(cell.runs).toBe(true);
+    expect(cell.unpricedHostKv).toBe(true);
+    expect(cell.blockedBy).toMatch(/host-side KV/i);
+    expect(cell.offloadFraction).toBeGreaterThan(0);
+    for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {
+      expect(measureValue(cell, measure)).toBeUndefined();
+    }
+  });
+
+  it('keeps a CPU-only host-KV fallback runnable when pinned tensors exceed the GPU ceiling', () => {
+    const [[cell]] = computeMatrix({
+      models: [LLAMA_32_3B],
+      devices: [{ ...RTX_5080, capacityBytes: GIB, allocatableBytes: GIB / 2 }],
+      quantFor: () => getQuant('bf16'),
+      runtime: LLAMA_CPP,
+      usage: USAGE,
+      deviceCount: 1,
+    });
+
+    expect(cell.runs).toBe(true);
+    expect(cell.unpricedHostKv).toBe(true);
+    expect(cell.blockedBy).toMatch(/host-side KV/i);
   });
 
   /**

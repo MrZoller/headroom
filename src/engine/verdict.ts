@@ -20,7 +20,7 @@ import type { Placement } from './placement';
  */
 
 /**
- * Three grades, and the reason there is no fourth.
+ * Four grades, including the explicit case where the configuration can run but cannot be measured.
  *
  * `good`, `tight` and `fail` are judgements — this setup does the thing well, marginally, or not at
  * all — and they are the vocabulary every surface renders with a reserved status colour.
@@ -42,7 +42,7 @@ import type { Placement } from './placement';
  * way. The invariant worth keeping from all of it: **a row is ungraded only when nothing about it
  * has been measured**, and there is now no such row.
  */
-export type Fitness = 'good' | 'tight' | 'fail';
+export type Fitness = 'good' | 'tight' | 'fail' | 'unmeasured';
 
 /**
  * Room a workload needs for its answer, on top of its prompt.
@@ -474,6 +474,7 @@ export interface VerdictInputs {
  */
 export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
   const { selectedPlacement, usage, maxContextTokens, runnableContextTokens, evaluateAt } = inputs;
+  const isUnpriced = (placement: Placement) => placement.unpricedHostKv && !placement.impossible;
 
   /**
    * Nothing else is meaningful if it cannot load. Said once, rather than seven times.
@@ -497,6 +498,12 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
     const reason =
       selectedPlacement.unsupported ?? 'The model does not fit and cannot spill to host RAM.';
     return WORKLOADS.map((w) => ({ workload: w, fitness: 'fail' as const, reason }));
+  }
+  if (selectedPlacement.unpricedHostKv) {
+    const reason =
+      'This configuration runs only by moving shed layers and their KV cache to host RAM. ' +
+      'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.';
+    return WORKLOADS.map((w) => ({ workload: w, fitness: 'unmeasured' as const, reason }));
   }
 
   /**
@@ -770,6 +777,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
 
   return [
     judge('chat', {
+      unpriced: isUnpriced(at('chat').placement),
       // Even a short conversation needs its own turn to fit — at 128 users on a small card the
       // runnable context can fall below 1K, and no amount of speed rescues that.
       pass:
@@ -792,6 +800,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${fmt(rateOf('chat'))} tok/s, ${wait(chatTtft)} to first token on a short message.`),
     }),
     judge('completion', {
+      unpriced: isUnpriced(at('completion').placement),
       // A suggestion that arrives after you have typed the next line is worse than none.
       pass:
         fits('completion') &&
@@ -828,6 +837,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${wait(completionTtft)} to first token stays inside the window where a suggestion helps.`),
     }),
     judge('agent', {
+      unpriced: isUnpriced(agentMeasured.placement),
       // Agents need all three: speed, headroom, and a prompt pass that does not stall each turn.
       // Omitting the latency term is what let a machine fail chat while "passing" this, which is
       // backwards — an agent does everything chat does, over a far larger prompt.
@@ -893,6 +903,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                   `Holds ${ctx(runnableContextTokens)}; ${fmt(agentRate)} tok/s and ${wait(agentTtft)} per turn with a ${ctx(agentSession)} session in the cache.`),
     }),
     judge('rag', {
+      unpriced: isUnpriced(at('rag').placement),
       // The answer is short; the prompt is not. This lives or dies on prefill — but speed is
       // moot if the 32K prompt has nowhere to live: prefill is estimated at the archetype's own
       // prompt length, which deliberately ignores the configured context, so the fit has to be
@@ -931,6 +942,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${fmt(ragPerDocumentTokensPerSec)} tok/s through a document — ${wait(ragPrefill.ttftSeconds)} for a 32K one.`),
     }),
     judge('long-context', {
+      unpriced: isUnpriced(longMeasured.placement),
       // Offload-aware: the resident figure is zero for any spilled configuration, which would
       // fail a card that holds 128K of KV perfectly well once its weights are on the host.
       //
@@ -1004,6 +1016,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                   : `Holds ${ctx(runnableContextTokens)} at this concurrency, ${wait(longMeasured.prefill.ttftSeconds)} to read ${ctx(longPrompt)}.`)),
     }),
     judge('batch', {
+      unpriced: isUnpriced(at('batch').placement),
       // No latency budget at all — but the request still has to fit, and the throughput has to
       // be measured at the batch scenario rather than at whatever the slider says.
       // Rescaled with the metric. These were 5 and 1 against decode-only throughput; end-to-end
@@ -1026,6 +1039,9 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             : `${fmt(batchAggregate())} tok/s end to end${batchWorkers()}, prompts included, makes even an overnight run small.`,
     }),
     judge('serving', {
+      // A four-user host-KV fallback cannot be graded as good, but it must not discard the
+      // independent two-user tight tier when that tier remains measurable.
+      unpriced: isUnpriced(servingTight.measured.placement),
       // Every concurrent user brings their own cache, which is what actually runs out.
       //
       // And every concurrent user brings their own prompt, which is what they wait on. Capacity
@@ -1046,11 +1062,13 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
       // answers "can this machine serve several people", which is a question about the machine.
       pass:
         servingGood.holds &&
+        !servingGood.measured.placement.unpricedHostKv &&
         servingGood.measured.decode.perUserTokensPerSec >= BARS.serving.good.rate &&
         servingGood.measured.placement.headroomBytes > 0 &&
         servingGood.measured.prefill.ttftSeconds <= BARS.serving.good.ttft,
       tight:
         servingTight.holds &&
+        !servingTight.measured.placement.unpricedHostKv &&
         servingTight.measured.decode.perUserTokensPerSec >= BARS.serving.tight.rate &&
         servingTight.measured.prefill.ttftSeconds <= BARS.serving.tight.ttft,
       why: () => {
@@ -1109,6 +1127,13 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             ? `${per} need ${gibUp(floorBytesPerDevice)} of cache and overhead per device — which offload cannot move — against ${ceiling}.`
             : `${per} need ${gibUp(usedBytesPerDevice)} per device against ${ceiling}, and this machine has no host tier to spill the weights to.`;
         }
+        if (tight.placement.unpricedHostKv) {
+          return (
+            `At ${usersWord(BARS.serving.tight.users)}, llama.cpp must move shed layers and their ` +
+            `KV cache to host RAM. Headroom does not check that RAM or model the mixed CPU/GPU ` +
+            `placement, so it cannot grade serving performance.`
+          );
+        }
         if (tight.decode.perUserTokensPerSec < BARS.serving.tight.rate) {
           return `${fmt(tight.decode.perUserTokensPerSec)} tok/s each at ${usersWord(BARS.serving.tight.users)}, under the ${BARS.serving.tight.rate} tok/s a shared deployment needs — and sharing the device further cannot raise it.`;
         }
@@ -1138,6 +1163,10 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             !servingGood.holds &&
               `it holds a turn each for ${usersWord(BARS.serving.tight.users)} but not for the ${BARS.serving.good.users} a serving deployment is graded at`,
             servingGood.holds &&
+              good.placement.unpricedHostKv &&
+              `at ${usersWord(BARS.serving.good.users)} llama.cpp moves shed layers and their KV cache to unchecked host RAM, a mixed CPU/GPU placement Headroom does not model`,
+            servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.decode.perUserTokensPerSec < BARS.serving.good.rate &&
               `${fmt(good.decode.perUserTokensPerSec)} tok/s each at ${usersWord(BARS.serving.good.users)} is under the ${BARS.serving.good.rate} tok/s a served user expects`,
             /*
@@ -1153,6 +1182,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
              * fraction and negative headroom. `holds` above excludes both.
              */
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.placement.offloadFraction > 0 &&
               'the weights are spilling to host RAM, so every additional user makes that worse rather than simply not fitting',
             /*
@@ -1166,10 +1196,12 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
              * builder exists to prevent, reachable through the one branch it did not cover.
              */
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.placement.offloadFraction === 0 &&
               good.placement.headroomBytes <= 0 &&
               'it uses every allocatable byte at four users, so there is nothing left for a fifth',
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.prefill.ttftSeconds > BARS.serving.good.ttft &&
               `${wait(good.prefill.ttftSeconds)} to first token across ${usersWord(BARS.serving.good.users)} of queued prompts is longer than a served user waits`
           ) ??
@@ -1182,12 +1214,20 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
 
 function judge(
   id: string,
-  { pass, tight, why }: { pass: boolean; tight: boolean; why: () => string }
+  {
+    pass,
+    tight,
+    why,
+    unpriced = false,
+  }: { pass: boolean; tight: boolean; why: () => string; unpriced?: boolean }
 ): WorkloadVerdict {
   return {
     workload: workload(id),
-    fitness: pass ? 'good' : tight ? 'tight' : 'fail',
-    reason: why(),
+    fitness: unpriced ? 'unmeasured' : pass ? 'good' : tight ? 'tight' : 'fail',
+    reason: unpriced
+      ? 'This scenario runs only by moving shed layers and their KV cache to host RAM. ' +
+        'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.'
+      : why(),
   };
 }
 
