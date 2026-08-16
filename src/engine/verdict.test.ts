@@ -16,14 +16,24 @@ import {
   GPT_OSS_20B,
   DEEPSEEK_V3,
   LLAMA_31_8B,
+  LLAMA_32_3B,
   LLAMA_CPP,
   MLX,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   VLLM,
   MAC_STUDIO_M3_ULTRA_256,
 } from './fixtures';
 import { getQuant } from '@/data/quants';
+import type { UsageSpec } from './types';
+
+const usage = (contextTokens: number, concurrency = 1): UsageSpec => ({
+  contextTokens,
+  concurrency,
+  kvPrecision: 'fp16',
+});
+
 // The monotonicity sweep is about the *model*, not about a rig, so it runs the shipped catalog
 // rather than fixtures — a claim checked only on the hardware it was derived from is not checked.
 import { DEVICES, MODELS, getDevice } from '@/data/catalog';
@@ -46,6 +56,7 @@ const RESIDENT: Placement = {
   // Cache and activations, which is what `impossible` weighs against the ceiling. Well under 10.
   floorBytesPerDevice: 2,
   offloadFraction: 0,
+  unpricedHostKv: false,
   impossible: false,
   // Nothing in `verdict.ts` reads the assignment — it is the launch emitter's input (#136) — so
   // this is the shape rather than a scenario, kept consistent with the bytes above so a future
@@ -2036,5 +2047,32 @@ describe('only the agent grades its prompt against a resident session', () => {
     expect(agent.reason).not.toMatch(/against the (64K|48K)/);
     // Never "re-read": not re-reading the session is the whole point of a cached prefix.
     expect(agent.reason).not.toMatch(/re-read/);
+  });
+
+  describe('host KV fallback verdict', () => {
+    const runtime = LLAMA_CPP;
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage(128 * 1024, 4);
+
+    it('says the placement runs but cannot be graded by the current roofline', () => {
+      const verdicts = judge(LLAMA_32_3B, 'bf16', {
+        device: config.device,
+        count: config.count,
+        runtime,
+        contextTokens: usageSpec.contextTokens,
+        concurrency: usageSpec.concurrency,
+      });
+
+      for (const verdict of verdicts.values()) {
+        expect(verdict.fitness).toBe('fail');
+        expect(verdict.reason).toMatch(/runs only by moving shed layers and their KV cache/i);
+        expect(verdict.reason).toMatch(/cannot grade performance/i);
+        expect(verdict.reason).not.toMatch(/does not fit|cannot spill|does not run|\bOOM\b/i);
+        expect(verdict.reason).not.toMatch(/tok\/s/);
+      }
+    });
   });
 });

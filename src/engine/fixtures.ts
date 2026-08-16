@@ -231,6 +231,28 @@ export const GPT_OSS_20B: ModelSpec = {
 // Devices — one from each corner of the capacity/bandwidth/compute triangle
 // ---------------------------------------------------------------------------
 
+/**
+ * The 5080 sits between the 4090 and 5090: 16 GB instead of 24 or 32, same PCIe 5.0 link as
+ * the 5090. It is the fixture for T4: Llama-3.2-3B at BF16 over four cards at 128K with 4 users
+ * spills layers but keeps the output tensor on the last card.
+ */
+export const RTX_5080: DeviceSpec = {
+  id: 'rtx-5080',
+  name: 'GeForce RTX 5080',
+  vendor: 'NVIDIA',
+  class: 'discrete-gpu',
+  status: 'shipping',
+  capacityBytes: 16 * GIB,
+  allocatableBytes: 15 * GIB, // display and desktop compositor take a slice
+  bandwidthBytesPerSec: 960 * GB,
+  flops: { fp16: 225 * TFLOP, fp8: 450 * TFLOP, fp4: 900 * TFLOP },
+  interconnect: 'PCIe 5.0 x16',
+  hostLinkBytesPerSec: 63 * GB,
+  tdpWatts: 360,
+  msrpUsd: 999,
+  source: 'https://www.techpowerup.com/gpu-specs/geforce-rtx-5080.c4217',
+};
+
 /** Fast at everything, in only 32 GB. */
 export const RTX_5090: DeviceSpec = {
   id: 'rtx-5090',

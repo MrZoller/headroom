@@ -23,6 +23,7 @@ import {
   MLX,
   QWEN3_32B,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   STRIX_HALO_395,
   VLLM,
@@ -1463,5 +1464,39 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
     expect(runtime.parallelism).toBe('tensor');
     expect(p.unsupported).toBeUndefined();
     expect(p.deviceWeightBytes).toBeCloseTo(p.totalWeightBytes - table, 0);
+  });
+
+  describe('host KV fallback', () => {
+    const runtime = LLAMA_CPP;
+    const quant = getQuant('bf16');
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage(128 * 1024, 4);
+
+    it('keeps the measured 4x RTX 5080 overflow runnable but unpriced', () => {
+      const p = planPlacement(LLAMA_32_3B, quant, usageSpec, config, runtime);
+      const seeded = p.assignment.shares.at(-1);
+
+      expect(p.unsupported).toBeUndefined();
+      expect(p.fits).toBe(false);
+      expect(p.impossible).toBe(false);
+      expect(p.unpricedHostKv).toBe(true);
+      expect(seeded?.residentLayers).toBe(0);
+      expect(p.assignment.residentLayers).toBeGreaterThan(0);
+    });
+
+    it('keeps ordinary weight offload priced', () => {
+      const device = { ...RTX_5080, allocatableBytes: 4 * GIB };
+      const p = planPlacement(LLAMA_32_3B, quant, usage(8 * 1024), { device, count: 1 }, runtime);
+
+      expect(p.unsupported).toBeUndefined();
+      expect(p.fits).toBe(false);
+      expect(p.impossible).toBe(false);
+      expect(p.offloadFraction).toBeGreaterThan(0);
+      expect(p.unpricedHostKv).toBe(false);
+      expect(p.assignment.residentLayers).toBeGreaterThan(0);
+    });
   });
 });

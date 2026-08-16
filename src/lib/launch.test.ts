@@ -14,6 +14,7 @@ import {
   MLX,
   QWEN3_32B,
   RTX_4090,
+  RTX_5080,
   RTX_5090,
   VLLM,
 } from '@/engine/fixtures';
@@ -1630,6 +1631,37 @@ describe('what review found, kept as tests', () => {
   it('measures vLLM at the configured user count, not the client’s default of 8', () => {
     const many = input(DEEPSEEK_V3, getQuant('fp8'), VLLM, RTX_5090, 8, usage({ concurrency: 16 }));
     expect(text(commands(many).vllm.measure)).toContain('--batch-size 16');
+  });
+
+  describe('host KV fallback guidance', () => {
+    const runtime = LLAMA_CPP;
+    const quant = getQuant('bf16');
+    const config = {
+      device: RTX_5080,
+      count: 4,
+    };
+    const usageSpec = usage({ contextTokens: 128 * 1024, concurrency: 4 });
+
+    it('emits reproducible llama.cpp commands with an explicit unpriced warning', () => {
+      const p = planPlacement(LLAMA_32_3B, quant, usageSpec, config, runtime);
+      expect(p.unpricedHostKv).toBe(true);
+
+      const many = input(LLAMA_32_3B, quant, runtime, config.device, config.count, usageSpec);
+      const emitted = commands(many);
+
+      expect(emitted['llama-server'].serve.ok).toBe(true);
+      expect(emitted['llama-bench'].measure.ok).toBe(true);
+      expect(text(emitted['llama-server'].serve)).toContain('-ngl 4');
+      for (const emission of [emitted['llama-server'].serve, emitted['llama-bench'].measure]) {
+        if (!emission.ok) throw new Error(emission.reason);
+        const notes = emission.notes.join(' ');
+        expect(notes).toMatch(/shed layers and their KV cache in host RAM/i);
+        expect(notes).toMatch(/does not check that host capacity/i);
+        expect(notes).toMatch(/speed figures above do not describe this command/i);
+        expect(notes).toMatch(/card 4 carries the output tensor and no layer at all/i);
+        expect(notes).not.toMatch(/does not run/i);
+      }
+    });
   });
 });
 
