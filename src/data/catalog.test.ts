@@ -1325,6 +1325,15 @@ describe('a hand-typed device row is validated, not trusted', () => {
     }
   });
 
+  it('does not retain a purchase price in notes for incomplete-system rows', () => {
+    for (const row of devicesJson.devices.filter(
+      (device) =>
+        device.price?.kind === 'unavailable' && device.price.reason === 'incomplete-system'
+    )) {
+      expect(row.note ?? '').not.toMatch(/\$\d/);
+    }
+  });
+
   it('names what it expected, since a human is the one fixing the row', () => {
     expect(() => toDevice({ ...ROW, class: 'gpu' })).toThrow(/discrete-gpu, unified-soc, cpu-ram/);
   });

@@ -685,7 +685,7 @@
       },
       "releasedAt": "2025-03-12",
       "source": "https://www.apple.com/mac-studio/specs/",
-      "note": "The allocation ceiling reserves 32 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. This is the 80-core GPU, and here capacity really does identify the bin: Apple gates the 512 GB option behind the larger chip, and the $9,499 decomposes as the $3,999 base plus the ~$1,500 chip and $4,000 memory upgrades \u2014 price and compute describe one machine. Stated anyway, because capacity-implies-the-bin is the reasoning that was wrong on the 96 and 256 GiB rows."
+      "note": "The allocation ceiling reserves 32 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. This is the 80-core GPU: Apple gates the 512 GB option behind the larger chip. The cited specification page covers multiple configurations, however, so it cannot support a complete-system price for this row."
     },
     {
       "id": "mac-studio-m3-ultra-256",
@@ -708,7 +708,7 @@
       },
       "releasedAt": "2025-03-12",
       "source": "https://www.apple.com/mac-studio/specs/",
-      "note": "The allocation ceiling reserves 16 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. **The compute is the 60-core GPU's, because the price is the 60-core machine's** \u2014 the MacBook Air row's convention. This row once claimed 256 GiB requires the 80-core part; it does not: Apple sells the 28-core CPU / 60-core machine with 256 GB at retail, and $5,599 is exactly the $3,999 base plus the memory upgrade, with no room for the ~$1,500 chip. The 80-core machine at this capacity is about $7,099."
+      "note": "The allocation ceiling reserves 16 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. The compute is the 60-core GPU's: Apple offers a 28-core CPU / 60-core GPU machine with 256 GB. The cited specification page covers multiple configurations, however, so it cannot support a complete-system price for this row."
     },
     {
       "id": "mac-studio-m3-ultra-96",
@@ -731,7 +731,7 @@
       },
       "releasedAt": "2025-03-12",
       "source": "https://www.apple.com/mac-studio/specs/",
-      "note": "The allocation ceiling reserves 8 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. **The compute is the 60-core GPU's, because the price is the 60-core machine's** \u2014 the MacBook Air row's convention, at the ambiguous end of the M3 Ultra line. Apple's $3,999 base pairs 96 GiB with the 60-core part and sells the 80-core as a ~$1,500 upgrade at the same capacity, so capacity does not identify the bin; this row carried the larger bin's 54 TFLOPS over the base machine's price, overstating prefill by a third for the buyer at that price."
+      "note": "The allocation ceiling reserves 8 GiB for macOS. `iogpu.wired_limit_mb` accepts a value up to physical memory, but what actually loads is bounded by what the OS, the window server and the inference process's own unwired allocations still need — so 100% of RAM is what the sysctl parses, not what the machine survives. The compute is the 60-core GPU's. Capacity does not identify the GPU bin at this end of the M3 Ultra line, and the cited specification page covers multiple configurations, so it cannot support a complete-system price for this row."
     },
     {
       "id": "mac-studio-m2-ultra-192",
@@ -891,7 +891,7 @@
       },
       "releasedAt": "2025-03-12",
       "source": "https://support.apple.com/en-us/122209",
-      "note": "The Mac most Mac owners actually have, and it has a real answer rather than no answer: 10 GiB of working set at 120 GB/s takes a 4B at Q4 comfortably, a 12B slowly, and nothing above that. Metal recommends two thirds of 16 GiB, and the 8 GiB reserve the larger rows apply would put a ceiling *below* that default — so this row states none. The sysctl exists; there is no figure above the default a machine this size survives. **The compute is the 8-core GPU's, because the price is the 8-core machine's.** The $999 Air ships 8 GPU cores; 10 is a paid upgrade. M4 cores are 0.85 TFLOPS fp16 each — the M4 Pro row's 13.6 over 16 cores — so this row is 8 × 0.85 = 6.8, not the 8.5 that describes the configuration nobody gets at this price. Pairing a base price with an upgraded part overstated prefill and TTFT here by 25%, on the axis a $999 machine is least able to absorb it."
+      "note": "The Mac most Mac owners actually have, and it has a real answer rather than no answer: 10 GiB of working set at 120 GB/s takes a 4B at Q4 comfortably, a 12B slowly, and nothing above that. Metal recommends two thirds of 16 GiB, and the 8 GiB reserve the larger rows apply would put a ceiling *below* that default — so this row states none. The sysctl exists; there is no figure above the default a machine this size survives. The compute is the 8-core GPU's; 10 cores are an optional upgrade. M4 cores are 0.85 TFLOPS fp16 each — the M4 Pro row's 13.6 over 16 cores — so this row is 8 × 0.85 = 6.8, not the 8.5 that describes the upgraded configuration. The cited specification page covers multiple configurations, so it cannot support a complete-system price for this row."
     },
 
     {

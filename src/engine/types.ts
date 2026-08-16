@@ -319,9 +319,6 @@ export interface DeviceSpec {
   tdpWatts?: number;
   releasedAt?: string;
   source: string;
-
-  /** US launch list price before tax, for one represented card or machine. */
-  msrpUsd?: number;
 }
 
 // ---------------------------------------------------------------------------
