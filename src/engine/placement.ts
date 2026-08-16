@@ -980,7 +980,8 @@ export function planPlacement(
       .slice(Math.max(0, bin.layers - residentLayers))
       .reduce(
         (sum, index) =>
-          sum + layerKvBytes(model, index, usage.contextTokens, usage.kvPrecision, runtime) *
+          sum +
+          layerKvBytes(model, index, usage.contextTokens, usage.kvPrecision, runtime) *
             Math.max(1, usage.concurrency),
         0
       );
