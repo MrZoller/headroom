@@ -207,14 +207,11 @@ describe('the Bench does not overclaim', () => {
   });
 
   /**
-   * `impossible` asks every device whether its cache and activations alone are over the ceiling,
-   * because under a layer split the busiest card by *combined* load is not necessarily the one
-   * holding the most cache. The sentence explaining the refusal has to quote the device that caused
-   * it — rebuilt from this bar's own per-device figures it named the card being drawn, which is a
-   * different card, and printed a figure comfortably *under* the ceiling it was citing as the
-   * reason. A predicate and its sentence are one claim.
+   * A hybrid layer split can balance different KV sizes only by a non-contiguous assignment, while
+   * llama.cpp can express only contiguous ranges. Do not label the engine's optimistic host-KV
+   * fallback as runnable when the command would use a different placement.
    */
-  it('does not call a host-KV fallback impossible', async () => {
+  it('refuses an unexpressible hybrid host-KV fallback', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -237,14 +234,10 @@ describe('the Bench does not overclaim', () => {
       useConfig.getState().set('deviceCount', 3);
     });
 
-    const hostKvWarning = screen.getByText(/runs only by moving shed layers and their KV cache/i);
-    expect(hostKvWarning).toBeInTheDocument();
-    expect(hostKvWarning.closest('p')).toHaveClass('text-[var(--color-warning)]');
-    expect(hostKvWarning.closest('p')).toHaveTextContent('◐');
-    expect(screen.queryByText(/does not fit and cannot spill/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Will not run')).toHaveLength(2);
 
     const verdicts = screen.getByRole('region', { name: 'Verdicts' });
-    expect(within(verdicts).getAllByText('Not modelled')).toHaveLength(2);
+    expect(within(verdicts).getAllByText('Will not run')).toHaveLength(1);
     expect(within(verdicts).queryByText(/tok\/s per user/i)).not.toBeInTheDocument();
   });
 

@@ -672,7 +672,7 @@ describe('layer splits are sized, not divided', () => {
      * used to be true by construction that an impossible offloadable rig had *the busiest device's*
      * cache over the ceiling, so BudgetBar could rebuild the figure from `kvBytesPerDevice`.
      */
-    it('names the device that made it impossible, not the one the readout describes', () => {
+    it('refuses a hybrid host-KV fallback whose packed placement cannot be emitted', () => {
       // Gemma 3 12B over three 4090s at 128K and 8 users: the packing gives two cards seven and
       // eight layers against the third's thirty-three, so the busiest card by combined load is the
       // one with the *least* cache.
@@ -692,10 +692,11 @@ describe('layer splits are sized, not divided', () => {
         LLAMA_CPP
       );
 
-      // The previous all-device KV floor rejected this placement even though the overloaded card
-      // can shed its layers and their cache to host RAM.
-      expect(p.impossible).toBe(false);
+      // The greedy cache-balanced assignment cannot be represented by llama.cpp's contiguous -ts
+      // placement, so its fallback cannot safely promise a runnable command.
+      expect(p.impossible).toBe(true);
       expect(p.unpricedHostKv).toBe(true);
+      expect(p.unexpressibleHostKvFallback).toBe(true);
     });
 
     it('keeps the floor and the busiest device together whenever every device holds the same', () => {

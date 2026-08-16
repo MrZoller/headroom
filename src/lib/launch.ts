@@ -760,6 +760,13 @@ const LAUNCHERS: Record<string, readonly Launcher[]> = {
 function placementRefusal(input: LaunchInput): string | undefined {
   const { placement } = input;
   if (placement.unsupported !== undefined) return placement.unsupported;
+  if (placement.unexpressibleHostKvFallback) {
+    return (
+      `This configuration does not run on ${input.rig.device.name}: Headroom's host-KV fallback ` +
+      `requires a hybrid-layer placement that llama.cpp cannot express. Choose more VRAM or a ` +
+      `smaller context or concurrency.`
+    );
+  }
   if (placement.impossible) {
     /**
      * **Two different failures wear one flag, and the first draft named only the first** (raised by

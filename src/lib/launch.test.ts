@@ -1337,6 +1337,20 @@ describe('a placement the engine refused produces no commands at all', () => {
     expect(serve.notes.join(' ')).not.toMatch(/pinned output tensor still fits on its card/i);
   });
 
+  it('refuses a hybrid host-KV fallback that llama.cpp cannot express', () => {
+    const over = input(
+      GEMMA_3_12B,
+      getQuant('q8_0'),
+      LLAMA_CPP,
+      RTX_4090,
+      3,
+      usage({ contextTokens: 131072, concurrency: 8 })
+    );
+    expect(over.placement.unexpressibleHostKvFallback).toBe(true);
+
+    expect(reason(commands(over)['llama-server'].serve)).toMatch(/cannot express/i);
+  });
+
   it('emits nothing for a runtime with no launcher registered', () => {
     const unknown: RuntimeSpec = { ...LLAMA_CPP, id: 'not-a-runtime' };
     expect(launchCommands(input(LLAMA_31_8B, getQuant('q4_k_m'), unknown))).toEqual([]);

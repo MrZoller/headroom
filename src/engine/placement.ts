@@ -1,6 +1,6 @@
 import type { DeviceSpec, ModelSpec, QuantSpec, Rig, RuntimeSpec, UsageSpec } from './types';
 import { activationBytes } from './activations';
-import { kvBytesTotal, layerKvBytes } from './kv';
+import { kvBytesTotal, layerKvBytes, layersCacheAlike } from './kv';
 import { weightBreakdown, type WeightBreakdown } from './weights';
 
 /**
@@ -149,6 +149,8 @@ export interface Placement {
    * ggml-org/llama.cpp commit ece963f on 15 August 2026.
    */
   unpricedHostKv: boolean;
+  /** True when llama.cpp cannot express the host-KV fallback assignment the engine priced. */
+  unexpressibleHostKvFallback?: boolean;
   /** True when the configuration is over budget and offload cannot rescue it. */
   impossible: boolean;
 
@@ -961,6 +963,15 @@ export function planPlacement(
   };
 
   const cpuOnlyFallback = bins.every((bin) => residentLayersOf(bin) === 0);
+  // `layerSplitBins` can balance hybrid layers by their individual KV costs, but llama.cpp can only
+  // express a contiguous `-ngl` suffix with `-ts`. Its default split is a different placement when
+  // cache sizes differ, so do not turn the engine's optimistic fallback into a runnable command.
+  const unexpressibleHostKvFallback =
+    unpricedHostKv &&
+    !cpuOnlyFallback &&
+    layerSplit &&
+    bins.length > 1 &&
+    !layersCacheAlike(model, usage.contextTokens);
 
   // Even offloading every weight leaves KV and activations on device. A llama.cpp host-KV fallback
   // is different: its pinned tensors and KV for the layers still resident on a card remain there,
@@ -995,7 +1006,9 @@ export function planPlacement(
     if (residentLayers === 0) return Math.max(max, pinnedWeightBytes + activations);
     return Math.max(max, pinnedWeightBytes + residentKvBytes + activations);
   }, 0);
-  const impossible = !fits && (!canOffload || floorBytesPerDevice > allocatableBytesPerDevice);
+  const impossible =
+    !fits &&
+    (unexpressibleHostKvFallback || !canOffload || floorBytesPerDevice > allocatableBytesPerDevice);
 
   const drives = runtime.supports.some(
     (s) =>
@@ -1042,6 +1055,7 @@ export function planPlacement(
     floorBytesPerDevice,
     offloadFraction,
     unpricedHostKv,
+    ...(unexpressibleHostKvFallback ? { unexpressibleHostKvFallback: true } : {}),
     impossible,
     assignment,
     unsupported,
