@@ -156,6 +156,31 @@ test.describe('with JavaScript enabled', () => {
 });
 
 /**
+ * The Matrix is deliberately client-only, but its eventual height is not: the reservation is in the
+ * prerendered tree so hydration cannot insert a 17-row grid above content a reader is already using.
+ */
+test('the prerendered Matrix reservation contains the hydrated grid', async ({ page }) => {
+  const route = builtRoute(1);
+  const served = await (await page.request.get(route)).text();
+
+  expect(served).toContain('data-matrix-reservation');
+  expect(served).not.toContain('role="grid"');
+
+  await page.goto(route);
+  const reservation = page.locator('[data-matrix-reservation]');
+  const matrix = page.getByRole('region', { name: 'Every model on every machine' });
+  await expect(matrix).toBeVisible();
+
+  const [reserved, rendered] = await Promise.all([reservation.boundingBox(), matrix.boundingBox()]);
+  expect(reserved, 'the Matrix reservation has no layout box').not.toBeNull();
+  expect(rendered, 'the hydrated Matrix has no layout box').not.toBeNull();
+  expect(
+    reserved!.height,
+    'the hydrated Matrix outgrew its prerendered reservation and shifted following content'
+  ).toBeGreaterThanOrEqual(rendered!.height);
+});
+
+/**
  * The fallback, checked on disk rather than over the preview server.
  *
  * `vite preview` answers an unknown path with `index.html` at 200, where GitHub Pages returns

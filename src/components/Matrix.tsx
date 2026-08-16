@@ -75,7 +75,11 @@ const serverSnapshot = () => false;
 
 export function DeferredMatrix({ config }: { config: Config }) {
   const show = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot);
-  return show ? <Matrix config={config} /> : null;
+  return (
+    <div data-matrix-reservation className="min-h-[85rem]" aria-hidden={!show}>
+      {show && <Matrix config={config} />}
+    </div>
+  );
 }
 
 /**
