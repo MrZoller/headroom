@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T4",
-  "branch": "factory/t4-pinned-placement-floor",
-  "pr": 221,
-  "hold": true,
-  "updated": "2026-08-16T00:20:56Z"
+  "current_task": "T5",
+  "branch": "factory/t5-reject-unpriced-calibration",
+  "pr": null,
+  "hold": false,
+  "updated": "2026-08-16T05:25:49Z"
 }

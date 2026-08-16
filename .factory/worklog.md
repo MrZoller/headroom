@@ -68,3 +68,10 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - Verification: `npm test` (41 files, 1,508 tests passed); `npm run lint`; `npm run format:check`; `npm run build` (199 routes plus 404.html, 162.5 MiB); `npm run test:e2e` (170 passed).
 - Opened held major-task PR [#221](https://github.com/MrZoller/headroom/pull/221). Task remains in review with `hold: true` for human approval and must not auto-merge.
 - First shepherd pass at head `a2eebca5d8d3afbd6686ce1ac484532d54d301fb`: PR CI run 31916998786 passed; push CI run 31916996714 and Claude review run 31916998836 remain in progress; Codex has an active 👀 reaction and no verdict yet. There are no comments, reviews, threads, or findings. After automation completes, this held major still requires human merge authority.
+
+## 2026-08-16 — T4 merged
+
+- Held major PR [#221](https://github.com/MrZoller/headroom/pull/221) was squash-merged at verified head `2e240ff41b7d62dc30537c5e67093a8b928276a2` as `3005b9c` and its branch was deleted.
+- CI build and browser checks and the Claude Code Review workflow all passed on the merged head. Codex reviewed that exact head. There is no late-merge marker and no new bot verdict after the merge to triage.
+- Marked T4 complete and cleared its recorded task, branch, PR, and hold state. No minors or refuted findings require post-merge entries.
+- Shepherd verification: `gh pr view 221 --json state,mergedAt,headRefOid,statusCheckRollup,reviews,comments`; `gh run list --commit 2e240ff41b7d62dc30537c5e67093a8b928276a2`; `~/.config/opencode/bin/factory-git sync`.

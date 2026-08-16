@@ -74,7 +74,7 @@ const prediction = (over: Partial<Prediction> = {}): Prediction => ({
   deviceVendor: 'NVIDIA',
   kvType: 'f16',
   modelLayers: 32,
-  gpuLayers: 33,
+  gpuLayers: 32,
   // The scenario's whole window, which is what `estimateDecode` charges every step against.
   residentContextTokens: 2048,
   ...over,
@@ -250,9 +250,12 @@ describe('a measurement of a different job is not evidence about the model', () 
     const spilled = JSON.stringify([
       { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 12, avg_ts: 900 },
     ]);
-    expect(compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0].mismatch).toMatch(
-      /12 layers on the GPU where the placement above puts 32 of 32/
-    );
+    const mismatch = compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0].mismatch;
+    expect(mismatch).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
+    expect(mismatch).toMatch(/prices 32 and emits -ngl 33/);
+    expect(
+      hasSubmittablePair([compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0]])
+    ).toBe(false);
 
     // And says nothing when the prediction makes no claim.
     expect(
@@ -260,14 +263,13 @@ describe('a measurement of a different job is not evidence about the model', () 
     ).toBeUndefined();
   });
 
-  it('accepts every spelling of "all the layers"', () => {
+  it('accepts all clamped spellings for fully-resident placements', () => {
     /**
-     * Where the two halves of this project disagreed with each other. llama.cpp counts the output
-     * tensor a position past the repeating blocks, so #136's emitter passes `layers + 1` for a
-     * fully-resident placement, and readers type `-ngl 99` for the same thing. Comparing against
-     * the layer count alone would have marked a run that followed Headroom's own command.
+     * Fully-resident placements accept any `-ngl` at or above `modelLayers + 1` because llama.cpp
+     * clamps them to the same complete placement. Bare `-ngl modelLayers` is not equivalent; it
+     * leaves layer zero on the host while keeping the output tensor resident, so it is rejected.
      */
-    for (const ngl of [32, 33, 99]) {
+    for (const ngl of [33, 99]) {
       const run = JSON.stringify([
         { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: 7285.68 },
       ]);
@@ -276,34 +278,49 @@ describe('a measurement of a different job is not evidence about the model', () 
         `-ngl ${ngl}`
       ).toBeUndefined();
     }
+
+    // Bare `-ngl modelLayers` leaves one repeating layer on the host.
+    const bare = JSON.stringify([
+      { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 32, avg_ts: 7285.68 },
+    ]);
+    expect(
+      compare(parseLlamaBench(bare), prediction({ modelLayers: 32, gpuLayers: 32 }))[0].mismatch
+    ).toMatch(/-ngl 32, which loads 31 of 32 repeating layers/);
+    expect(
+      compare(parseLlamaBench(bare), prediction({ modelLayers: 32, gpuLayers: 32 }))[0].mismatch
+    ).toMatch(/prices 32 and emits -ngl 33/);
   });
 
-  it('accepts the emitted flag for a partial placement, and the older one it replaced', () => {
+  it('accepts exactly the emitted flag for a partial placement', () => {
     /**
-     * **The same disagreement one layer down** (#204). `prediction.gpuLayers` counts *repeating
-     * layers*; `n_gpu_layers` in a paste is the flag, which counts the output tensor a slot past
-     * them. Since #204 the Launch panel emits `-ngl N + 1` for a spilling placement of `N` layers,
-     * so comparing exactly against `N` would mark a run that followed Headroom's own command — the
-     * failure the fully-resident branch above was written for, arriving on the branch it left out.
+     * `prediction.gpuLayers` counts *repeating layers*; `n_gpu_layers` in a paste is the flag,
+     * which counts the output tensor a slot past them. A priced placement of `N` repeating layers
+     * therefore has exactly one valid flag, `-ngl N + 1`. The panel emits `-ngl N + 1` for a
+     * spilling placement of `N` layers.
      *
-     * `-ngl N` is accepted alongside it, and **not because the two are equivalent** — it loads
-     * `N - 1` repeating layers, a measurably different placement. It is accepted because every
-     * spilling command this panel emitted between #169 and #204 was a bare `-ngl N`, so those
-     * pastes exist. A backwards-compatibility tolerance with a shelf life, narrowed in #208
-     * together with the fully-resident arm, which has the same hole and far more of it.
+     * `-ngl N` loads `N - 1` repeating layers, a measurably different placement, and is rejected.
+     * The older spelling `-ngl N` was emitted between #169 and #204, but #208 ends that backwards-
+     * compatibility tolerance rather than letting differently priced runs enter the corpus.
      */
-    for (const ngl of [12, 13]) {
-      const run = JSON.stringify([
-        { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: 900 },
-      ]);
-      expect(
-        compare(parseLlamaBench(run), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch,
-        `-ngl ${ngl}`
-      ).toBeUndefined();
-    }
+    const run = JSON.stringify([
+      { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 13, avg_ts: 900 },
+    ]);
+    expect(
+      compare(parseLlamaBench(run), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch
+    ).toBeUndefined();
 
-    // And the tolerance is exactly one slot wide, not a band: a genuinely different split still
-    // fails, on both sides.
+    // Bare `-ngl N` is rejected: it loads one fewer repeating layer.
+    const bare = JSON.stringify([
+      { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 12, avg_ts: 900 },
+    ]);
+    expect(
+      compare(parseLlamaBench(bare), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch
+    ).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
+    expect(
+      compare(parseLlamaBench(bare), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch
+    ).toMatch(/prices 12 and emits -ngl 13/);
+
+    // Values on both sides are also rejected.
     for (const ngl of [11, 14]) {
       const run = JSON.stringify([
         { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: 900 },
@@ -311,7 +328,11 @@ describe('a measurement of a different job is not evidence about the model', () 
       expect(
         compare(parseLlamaBench(run), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch,
         `-ngl ${ngl}`
-      ).toMatch(/layers on the GPU where the placement above puts 12 of 32/);
+      ).toMatch(/-ngl \d+, which loads \d+ of 32 repeating layers/);
+      expect(
+        compare(parseLlamaBench(run), prediction({ modelLayers: 32, gpuLayers: 12 }))[0].mismatch,
+        `-ngl ${ngl}`
+      ).toMatch(/prices 12 and emits -ngl 13/);
     }
   });
 
@@ -322,9 +343,15 @@ describe('a measurement of a different job is not evidence about the model', () 
     const onGpu = JSON.stringify([
       { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 32, avg_ts: 7285.68 },
     ]);
+    const mismatch = compare(
+      parseLlamaBench(onGpu),
+      prediction({ gpuLayers: 0, modelLayers: 32 })
+    )[0].mismatch;
+    expect(mismatch).toMatch(/-ngl 32, which loads 31 of 32 repeating layers/);
+    expect(mismatch).toMatch(/prices 0 and emits -ngl 0/);
     expect(
-      compare(parseLlamaBench(onGpu), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
-    ).toMatch(/32 layers on the GPU where the placement above puts 0 of 32/);
+      hasSubmittablePair([compare(parseLlamaBench(onGpu), prediction({ gpuLayers: 0 }))[0]])
+    ).toBe(false);
 
     /**
      * **And `-ngl 1` is not a second spelling of zero**, which is where the #204 widening above had
@@ -337,7 +364,32 @@ describe('a measurement of a different job is not evidence about the model', () 
     ]);
     expect(
       compare(parseLlamaBench(oneSlot), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
-    ).toMatch(/1 layers on the GPU where the placement above puts 0 of 32/);
+    ).toMatch(/-ngl 1, which loads 0 of 32 repeating layers/);
+    expect(
+      compare(parseLlamaBench(oneSlot), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
+    ).toMatch(/prices 0 and emits -ngl 0/);
+  });
+
+  it('accepts exactly `-ngl 0` for a zero prediction', () => {
+    // A prediction of no GPU layers is either a `cpu-ram` machine or a card with no room for one,
+    // and the emitter passes `-ngl 0` for both. Only `-ngl 0` is accepted.
+    const zeroRun = JSON.stringify([
+      { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 0, avg_ts: 7285.68 },
+    ]);
+    expect(
+      compare(parseLlamaBench(zeroRun), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
+    ).toBeUndefined();
+
+    // `-ngl 1` puts the whole output table on a GPU, which is not equivalent to zero.
+    const oneSlot = JSON.stringify([
+      { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 1, avg_ts: 7285.68 },
+    ]);
+    expect(
+      compare(parseLlamaBench(oneSlot), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
+    ).toMatch(/-ngl 1, which loads 0 of 32 repeating layers/);
+    expect(
+      compare(parseLlamaBench(oneSlot), prediction({ gpuLayers: 0, modelLayers: 32 }))[0].mismatch
+    ).toMatch(/prices 0 and emits -ngl 0/);
   });
 
   it('will not read a markdown paste as confirming a non-default cache', () => {
@@ -538,7 +590,9 @@ describe('what the second review round found', () => {
       `| llama 8B Q4_K - Medium | 4.58 GiB | 8.03 B | CUDA | 12 | pp2048 | 900.0 ± 1.0 |`
     );
     expect(partial[0].gpuLayers).toBe(12);
-    expect(compare(partial, prediction())[0].mismatch).toMatch(/12 layers on the GPU/);
+    const mismatch = compare(partial, prediction())[0].mismatch;
+    expect(mismatch).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
+    expect(mismatch).toMatch(/prices 32 and emits -ngl 33/);
   });
 
   it('requires both halves of the cache to match, not either', () => {
@@ -670,7 +724,8 @@ describe('what reading the header row settled', () => {
     const [pair] = compare(parseLlamaBench(offloaded), prediction());
 
     expect(pair.error).toBeCloseTo(900 / 7000 - 1, 4);
-    expect(pair.mismatch).toMatch(/12 layers on the GPU where the placement above puts 33 of 32/);
+    expect(pair.mismatch).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
+    expect(pair.mismatch).toMatch(/prices 32 and emits -ngl 33/);
     expect(pair.mismatch).toMatch(/q8_0 cache where the figures above assume f16/);
     expect(hasSubmittablePair([pair])).toBe(false);
   });
@@ -688,7 +743,9 @@ describe('what reading the header row settled', () => {
     const [row] = parseLlamaBench(withSplit);
 
     expect(row.gpuLayers).toBe(12);
-    expect(compare([row], prediction())[0].mismatch).toMatch(/12 layers on the GPU/);
+    const mismatch = compare([row], prediction())[0].mismatch;
+    expect(mismatch).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
+    expect(mismatch).toMatch(/prices 32 and emits -ngl 33/);
   });
 
   it('reads the columns in whatever order the header puts them', () => {
@@ -928,6 +985,33 @@ describe('the submission carries the scenario, not a description of it', () => {
     // One data row per comparable pair, and none for the marked one.
     const dataRows = body.split('\n').filter((line) => /^\| (prefill|decode) \|/.test(line));
     expect(dataRows).toHaveLength(mixed.filter((c) => c.mismatch === undefined).length);
+  });
+
+  it('keeps unpriced full and partial placements out of the submission corpus', () => {
+    const measured = (ngl: number, rate: number) =>
+      parseLlamaBench(
+        JSON.stringify([{ n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: rate }])
+      );
+    const comparisons = [
+      ...compare(measured(32, 111), prediction({ gpuLayers: 32 })),
+      ...compare(measured(12, 222), prediction({ gpuLayers: 12 })),
+      ...compare(measured(13, 333), prediction({ gpuLayers: 12 })),
+    ];
+
+    expect(comparisons.map((pair) => pair.mismatch === undefined)).toEqual([false, false, true]);
+    const body = bodyOf(
+      url({
+        repoUrl: 'https://github.com/MrZoller/headroom',
+        scenarioUrl: 'https://example.test/?d=rtx-5090',
+        deviceName: 'GeForce RTX 5090',
+        deviceCount: 1,
+        modelName: 'Llama 3.1 8B Instruct',
+        comparisons,
+      })
+    );
+    expect(body).not.toContain('111.0');
+    expect(body).not.toContain('222.0');
+    expect(body).toContain('333.0');
   });
 
   it('is a plain issues/new link with nothing else in it', () => {
