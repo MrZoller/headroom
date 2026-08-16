@@ -5,7 +5,7 @@
   "plan_approved": false,
   "current_task": "T5",
   "branch": "factory/t5-reject-unpriced-calibration",
-  "pr": null,
-  "hold": false,
-  "updated": "2026-08-16T05:25:49Z"
+  "pr": 223,
+  "hold": true,
+  "updated": "2026-08-16T05:37:12Z"
 }
