@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T6",
-  "branch": "factory/t6-even-tensor-splits",
-  "pr": 224,
+  "current_task": null,
+  "branch": null,
+  "pr": null,
   "hold": false,
-  "updated": "2026-08-16T12:29:39Z"
+  "updated": "2026-08-16T13:26:28Z"
 }
