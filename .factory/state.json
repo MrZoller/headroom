@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": false,
   "plan_approved": false,
-  "current_task": "T7",
-  "branch": "factory/t7-honest-device-pricing",
+  "current_task": "T8",
+  "branch": "factory/t8-defer-matrix",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-16T13:27:39Z"
+  "updated": "2026-08-16T15:07:41Z"
 }

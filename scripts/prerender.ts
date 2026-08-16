@@ -43,11 +43,10 @@ const SITE_ORIGIN = process.env.SITE_ORIGIN ?? '';
 /**
  * The most pages this build is allowed to write.
  *
- * Not a round number picked for comfort. GitHub Pages hard-limits a published site to 1 GB, and a
- * page of this app measures about 820 KiB of HTML — 94% of it the comparison grid's cells — which
- * puts the real ceiling near 1,250 pages. 400 leaves a 3x margin, and it is the number that stops
- * a catalog which doubles from silently quadrupling the model x device tier, since that tier is a
- * product of two axes that both grow.
+ * This guards the route topology independently of page weight. It is the number that stops a catalog
+ * which doubles from silently quadrupling a model x device tier, since that tier is a product of two
+ * axes that both grow. Pages are now about 50 KiB after the repeated Matrix was removed from their
+ * server payloads, so the route cap is intentionally no longer derived from the 1 GB Pages limit.
  *
  * The full tiered list is 199 of it: 1 root, 43 devices, 35 models, 120 pairs. A catalog that
  * doubled on both axes would be 1 + 86 + 70 + 120 = 277 — still inside, because the pair tier is a
@@ -58,8 +57,9 @@ const MAX_ROUTES = 400;
 
 /**
  * The most bytes `dist/` is allowed to reach, checked because page weight moves independently of
- * page count: 400 routes is ~320 MiB today and would be far more if the grid grew. Both caps bind
- * at roughly the same place, which is the point of having two.
+ * page count. Removing the repeated Matrix moved the current build far below this boundary, but an
+ * accidentally embedded catalog or large asset can still grow bytes without adding one route. The
+ * cap remains a safety boundary below GitHub Pages' 1 GB limit rather than a target.
  */
 const MAX_DIST_BYTES = 512 * 1024 * 1024;
 

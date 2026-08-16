@@ -32,12 +32,13 @@ those gates literally.)
 - [x] T6 (standard) — Emit tensor splits for reproducibly even placements (Fixes #207)
   - acceptance: the population still reaching the even-split suppression gate is re-measured against current `main` and current llama.cpp behavior; `src/lib/launch.ts` emits `-ts` whenever omission would diverge from the engine's placement, using the current last-share output-slot rule; tests derive expected devices from engine accounting rather than restating emitter logic
   - deps: none
-- [~] T7 (major) — Define and surface honest device pricing (Fixes #205)
+- [x] T7 (major) — Define and surface honest device pricing (Fixes #205)
   - acceptance: device price semantics, date, source, USD/pre-tax labeling, multi-device presentation, and unavailable or stale cases are documented in the catalog contract; selected UI and prerender surfaces expose supported prices without implying a full-system or current street price; announced, rumored, discontinued, datacenter, and CPU-RAM rows have tested honest fallbacks; price-based ranking remains out of scope
   - deps: none
-- [ ] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
+- [~] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
   - acceptance: server output and the client's first render omit the cross-catalog Matrix consistently, then populate it without hydration warnings or geometry regressions; raw route HTML retains the selected device-model fit, memory, prefill, and decode figures; build measurements demonstrate the expected per-page and total output reduction and existing prerender/e2e guards pass
   - deps: none
 - [!] T9 (trivial) — parked review minors (batch)
   - Re-run the catalog generation and verification gate after selecting the current `origin/main` base, so a concurrent main change cannot combine a newly fetched base with a catalog generated and tested against an older checkout. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503366)
   - Revalidate the refresh PR's open state after publication before choosing `gh pr edit`, handling a close/merge race rather than relying on the initial snapshot. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503368)
+  - Add typo-rejection regressions for invalid device-price `unit`, `availability`, and `reason` values. [PR #225](https://github.com/MrZoller/headroom/pull/225#discussion_r3791993851)

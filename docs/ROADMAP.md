@@ -107,6 +107,21 @@ disagree. What the two phases settled is under **Things that took real work to g
 finding worth reading first is that the plan's injection seam was wrong in a way that produced four
 correct-looking files with one machine's numbers in all of them.
 
+**Those pages no longer repeat the cross-catalog Matrix**
+([#195](https://github.com/MrZoller/headroom/issues/195)). The server and the client's hydration
+snapshot both omit it; after React attaches to that matching tree, `useSyncExternalStore` switches to
+the client snapshot and mounts the unchanged Matrix. This is the seam that matters: rendering the
+Matrix on the client's first pass would be a hydration mismatch and would throw away the selected
+scenario HTML that prerendering exists to preserve. A non-prerendered fallback uses `createRoot` and
+reads the client snapshot immediately, so it still gets the Matrix on its first render.
+
+Measured on 16 August 2026, the root page fell from **840,127 to 51,429 raw bytes** and from
+**37,509 to 11,043 gzip bytes**; the whole `dist/` tree fell from **165,336 to 10,776 KiB**. The raw
+HTML still carries the selected device-model capacity verdict, memory budget and breakdown, prefill,
+and decode figures. Only the 1,470-cell comparison repeated on every route moved client-side. Unit
+hydration tests fail on any recoverable mismatch, the browser test checks both the raw response and
+the post-hydration Matrix, and the existing Matrix Playwright suite still measures its final geometry.
+
 **Correctness debt is tracked as issues, not here.** #9 and #10, which graded a configuration as
 working when it is not, are fixed — together with #11, which printed a figure measured at a
 different scenario from the one its sentence described. Filed as three bugs, one class; written up

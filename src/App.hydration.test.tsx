@@ -120,6 +120,21 @@ describe('hydration', () => {
     expect(await hydrate({})).toEqual([]);
   });
 
+  it('adds the Matrix only after matching the selected scenario’s prerendered markup', async () => {
+    const config = { deviceId: 'rtx-5090' };
+    const raw = renderRoute(config);
+
+    // The Matrix is intentionally absent from the bytes a crawler receives: its grid is client-only
+    // work, unlike the selected scenario's figures above it. Both checks are structural so a Matrix
+    // heading without its table, or a table without its named section, cannot satisfy the seam.
+    expect(raw).not.toContain('Every model on every machine');
+    expect(raw).not.toContain('role="grid"');
+
+    expect(await hydrate(config)).toEqual([]);
+    expect(document.body).toHaveTextContent('Every model on every machine');
+    expect(document.body.querySelector('[role="grid"]')).not.toBeNull();
+  });
+
   it('keeps the markup prerendered for a device route', async () => {
     // A different class from the default, so the branches that differ by class — the runtime
     // filter, the quant fallback, the shard control — are all exercised across the hydrate.

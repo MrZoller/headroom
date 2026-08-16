@@ -1,4 +1,13 @@
-import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react';
 import {
   computeMatrix,
   measureRange,
@@ -53,6 +62,45 @@ const SUBSTITUTE_QUANT_IDS = ['q4_k_m', 'awq_4bit', 'int8', 'q8_0', FALLBACK_QUA
  * for a string the other component happens to use is the kind of coupling that breaks silently.
  */
 export const DETAIL_ANCHOR_ID = 'bench-detail';
+
+/**
+ * The Matrix is a client-only comparison surface, while the selected scenario above it remains
+ * prerendered. `useSyncExternalStore` gives hydration the same `false` snapshot the server used,
+ * then switches to the client snapshot after React has attached to that matching tree. A normal
+ * `createRoot` render reads the client snapshot immediately, so the unprerendered 404 fallback does
+ * not need a separate path.
+ */
+const subscribeToClient = () => () => undefined;
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
+/**
+ * The table's chrome (heading, controls, rotated labels, legend, and readout) is taller on a
+ * touch layout. Keep it separate from the row calculation: catalog growth must add exactly one
+ * rendered-cell height to the SSR reservation rather than relying on a stale whole-panel guess.
+ */
+const MATRIX_CHROME_REM = { fine: 50, coarse: 81 } as const;
+
+export function DeferredMatrix({ config }: { config: Config }) {
+  const show = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot);
+  const { models } = comparisonGrid();
+  return (
+    <div
+      data-matrix-reservation
+      className="min-h-[calc(var(--matrix-rows)*1.75rem+var(--matrix-chrome-fine))] [@media(pointer:coarse)]:min-h-[calc(var(--matrix-rows)*2.75rem+var(--matrix-chrome-coarse))]"
+      style={
+        {
+          '--matrix-rows': models.length,
+          '--matrix-chrome-fine': `${MATRIX_CHROME_REM.fine}rem`,
+          '--matrix-chrome-coarse': `${MATRIX_CHROME_REM.coarse}rem`,
+        } as CSSProperties
+      }
+      aria-hidden={!show}
+    >
+      {show && <Matrix config={config} />}
+    </div>
+  );
+}
 
 /**
  * What separates one class band of columns from the next: two spacing steps of the panel's own

@@ -87,13 +87,28 @@ test.describe('with JavaScript disabled', () => {
       /[0-9.]+ [GTM]iB of [0-9.]+ [GTM]iB allocatable used/
     );
     expect(served).toMatch(/Weights [0-9.]+ [GTM]iB, KV cache [0-9.]+ [GTM]iB/);
+    expect(served).toContain('>Spilling to RAM<');
     expect(served).toContain('data-prerendered');
+    expect(served).toMatch(/[0-9.]+ tok\/s prompt processing/);
+    expect(served).toMatch(/tok\/s per user/);
+    expect(served).not.toContain('Every model on every machine');
+    expect(served).not.toContain('role="grid"');
 
     await page.goto(route);
 
     const capacity = tile(page, 'Capacity');
     await expect(capacity).toContainText(/[0-9.]+ [GTM]iB/);
     await isReallyPainted(capacity);
+    await expect(page.getByRole('grid')).toHaveCount(0);
+
+    // This is the pre-hydration box: it must already be large enough for the client-only grid,
+    // rather than learning its height after mounting and shifting the architecture aside below.
+    const reservation = page.locator('[data-matrix-reservation]');
+    const box = await reservation.boundingBox();
+    expect(box, 'the Matrix reservation has no layout box').not.toBeNull();
+    expect(box!.height, 'the Matrix reservation is shorter than the desktop grid').toBeGreaterThan(
+      1767
+    );
   });
 
   test('a two-level page resolves its assets and paints the same way', async ({ page }) => {
@@ -121,6 +136,57 @@ test.describe('with JavaScript disabled', () => {
     await expect(decode).toContainText(/tok\/s per user|no speed to report/);
     await isReallyPainted(decode);
   });
+});
+
+test.describe('with JavaScript enabled', () => {
+  test('hydrates selected figures before adding the deferred Matrix without warnings', async ({
+    page,
+  }) => {
+    const route = builtRoute(1);
+    const warnings: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') warnings.push(message.text());
+    });
+    page.on('pageerror', (error) => warnings.push(error.message));
+
+    const served = await (await page.request.get(route)).text();
+    expect(served).toMatch(/[0-9.]+ [GTM]iB of [0-9.]+ [GTM]iB allocatable used/);
+    expect(served).toMatch(/Weights [0-9.]+ [GTM]iB, KV cache [0-9.]+ [GTM]iB/);
+    expect(served).toContain('>Spilling to RAM<');
+    expect(served).toMatch(/[0-9.]+ tok\/s prompt processing/);
+    expect(served).toMatch(/tok\/s per user/);
+    expect(served).not.toContain('Every model on every machine');
+    expect(served).not.toContain('role="grid"');
+
+    await page.goto(route);
+    await expect(page.getByRole('grid')).toHaveCount(1);
+    expect(warnings, 'hydration must not report a warning or recoverable error').toEqual([]);
+  });
+});
+
+/**
+ * The Matrix is deliberately client-only, but its eventual height is not: the reservation is in the
+ * prerendered tree so hydration cannot insert a 17-row grid above content a reader is already using.
+ */
+test('the prerendered Matrix reservation contains the hydrated grid', async ({ page }) => {
+  const route = builtRoute(1);
+  const served = await (await page.request.get(route)).text();
+
+  expect(served).toContain('data-matrix-reservation');
+  expect(served).not.toContain('role="grid"');
+
+  await page.goto(route);
+  const reservation = page.locator('[data-matrix-reservation]');
+  const matrix = page.getByRole('region', { name: 'Every model on every machine' });
+  await expect(matrix).toBeVisible();
+
+  const [reserved, rendered] = await Promise.all([reservation.boundingBox(), matrix.boundingBox()]);
+  expect(reserved, 'the Matrix reservation has no layout box').not.toBeNull();
+  expect(rendered, 'the hydrated Matrix has no layout box').not.toBeNull();
+  expect(
+    reserved!.height,
+    'the hydrated Matrix outgrew its prerendered reservation and shifted following content'
+  ).toBeGreaterThanOrEqual(rendered!.height);
 });
 
 /**

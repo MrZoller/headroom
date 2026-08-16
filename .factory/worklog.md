@@ -102,3 +102,19 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - PR [#224](https://github.com/MrZoller/headroom/pull/224) was squash-merged at verified head `f254961654e401abb51cf2639c0488b06cf83e34` as `87eb6c5`; its branch was deleted and local `main` is synced.
 - Both CI build/browser runs and the Claude Code Review workflow passed. Codex posted a clean `+1` reaction on the PR body; this single-head PR makes that verdict attributable to the merged head. There are no bot comments, formal reviews, review threads, labels, parked minors, or refuted findings.
 - Marked T6 complete and cleared its recorded task, branch, PR, and hold state. Created the late-verdict cursor at count 0; it remains during the 30-minute post-merge window.
+
+## 2026-08-16 — T7 honest device pricing
+
+- Replaced ambiguous engine-level MSRP numbers with a validated catalog-only price union. Every device now states either a dated, separately sourced US launch list price before tax or an explicit unavailable reason; discontinued prices are historical, and pre-release rows cannot carry numeric prices.
+- The Hardware control exposes price and availability alongside its selected device, recomputes card-only or represented-machine totals with device count, and never implies a complete rig price. Device and device-model prerender metadata carry the compact form. Price remains outside engine calculations and ranking; the settled contract and exclusions are documented in `docs/ROADMAP.md`.
+- Acceptance evidence covers current and discontinued launch prices, all five unavailable reasons, old check dates, announced/rumoured guards, multi-card and multi-machine presentation, selected-control updates, route metadata, and the existing two-line/layout limits. The local correctness panel returned CLEAN; the security/tests panel's one medium finding was rejected by the verifier because both the typed union and runtime catalog guard make its proposed unknown reason unreachable. Overall panel verdict: CLEAR.
+- Verification on the final committed catalog: `npm test` (42 files, 1,534 tests passed); `npm run lint`; `npm run format:check`; `npm run build` (199 routes plus 404.html, 160.6 MiB); `npm run test:e2e` (170 passed).
+- Opened held major-task PR [#225](https://github.com/MrZoller/headroom/pull/225) at head `6798ae4159159e075a14ea5b5e8efe5eacb8c6aa`. First shepherd pass found both CI runs and Claude Code Review in progress; Codex has an active 👀 reaction and no verdict yet. There are no comments, reviews, threads, findings, or repository hold label. Durable `state.hold: true` and the major classification enforce the hold; human merge authority is required after automation completes.
+- `factory-git push-bookkeeping` was rejected because remote `main` moved or branch protection refused the direct update. Per protocol it was not retried; held-task state remains durable in this clone and will reach the remote through the normal merge topology.
+
+## 2026-08-16 — T7 merged
+
+- Held major PR [#225](https://github.com/MrZoller/headroom/pull/225) was manually squash-merged at verified head `4187cabe89892b58b193f95249aa01c1c3ce0594` as `12c56e1`; its branch was deleted.
+- CI build/browser checks and the Claude Code Review workflow passed on the merged head. All seven review threads were resolved: five blocking pricing defects were fixed before merge, the duplicate dead-field concern was superseded by its fix, and the verifier-classified price-union typo-coverage minor was parked in T9. There are no refuted findings.
+- Late-verdict sweep initialized PR #225's cursor at 7 bot review/comment verdicts; all were present before the merge, so nothing was orphaned into the backlog. The cursor remains during the 30-minute window.
+- Marked T7 complete and cleared its recorded task, branch, PR, and hold state.
