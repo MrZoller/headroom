@@ -1484,6 +1484,26 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
       expect(p.assignment.residentLayers).toBeGreaterThan(0);
     });
 
+    it('marks the exact zero-layer boundary as unpriced', () => {
+      const baseline = planPlacement(
+        LLAMA_32_3B,
+        quant,
+        usage(1024),
+        { device: RTX_5080, count: 1 },
+        runtime
+      );
+      const device = {
+        ...RTX_5080,
+        allocatableBytes:
+          baseline.usedBytesPerDevice - weightBreakdown(LLAMA_32_3B, quant).layerBytes,
+      };
+      const p = planPlacement(LLAMA_32_3B, quant, usage(1024), { device, count: 1 }, runtime);
+
+      expect(p.unpricedHostKv).toBe(true);
+      expect(p.assignment.residentLayers).toBe(0);
+      expect(p.impossible).toBe(false);
+    });
+
     it('keeps ordinary weight offload priced', () => {
       const device = { ...RTX_5080, allocatableBytes: 4 * GIB };
       const p = planPlacement(LLAMA_32_3B, quant, usage(8 * 1024), { device, count: 1 }, runtime);

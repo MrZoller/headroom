@@ -899,6 +899,8 @@ function describe(
       // The inline-clause register of the qualifier — the constant's sentence-initial "Loads"
       // cannot sit mid-list; the legend hint above carries the full-sentence form.
       `${counts.offloaded} run only by spilling weights to host RAM, ${HOST_RAM_UNCHECKED_BRIEF}`,
+    (counts.unpriced ?? 0) > 0 &&
+      `${counts.unpriced} run with layers and KV in host RAM, so performance is not modelled`,
   ].filter((s): s is string => typeof s === 'string');
   /**
    * What the colour means, which a sighted reader gets from the ramp and the toggle's caption.

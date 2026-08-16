@@ -871,7 +871,7 @@ export function planPlacement(
   // accounting rather than applying a llama.cpp-specific floor to their launch commands.
   const hostKvFallback = canOffload && runtime.parallelism === 'layer';
   const unpricedHostKv =
-    hostKvFallback && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
+    hostKvFallback && bins.some((bin) => overflowOf(bin) >= bin.layerWeightBytes);
   const spilledOf = (bin: DeviceLoad) =>
     canOffload
       ? Math.min(overflowOf(bin), hostKvFallback ? bin.layerWeightBytes : bin.weightBytes)
@@ -960,6 +960,8 @@ export function planPlacement(
         : shares.reduce((min, s) => Math.min(min, s.residentLayers), model.layers),
   };
 
+  const cpuOnlyFallback = bins.every((bin) => residentLayersOf(bin) === 0);
+
   // Even offloading every weight leaves KV and activations on device. A llama.cpp host-KV fallback
   // is different: its pinned tensors and KV for the layers still resident on a card remain there,
   // while shed layers' KV follows those layers to host RAM. Taken over every device rather than the
@@ -972,9 +974,10 @@ export function planPlacement(
     if (!unpricedHostKv) return Math.max(max, bin.kvBytes + activations);
 
     const residentLayers = residentLayersOf(bin);
-    // `-ngl 0` is CPU-only, including its activations and fixed tensors. Host capacity is explicitly
-    // outside this fallback's model, so it contributes no device-side feasibility floor.
-    if (residentLayers === 0) return max;
+    // Only a globally zero-layer `-ngl 0` placement is CPU-only. A zero-layer share in a split still
+    // participates when another share keeps layers: llama.cpp retains the output tensor on the last
+    // GPU, so this bin's fixed tensors and activations remain a device-side feasibility floor.
+    if (cpuOnlyFallback) return max;
     // The layers llama.cpp keeps are the tail of its resident window.  A layer count is not a
     // cache divisor for hybrid models: a bin can contain both full-attention and sliding-window
     // layers, whose KV costs differ by orders of magnitude.  Price the actual assigned layers
@@ -989,6 +992,7 @@ export function planPlacement(
         0
       );
     const pinnedWeightBytes = bin.weightBytes - bin.layerWeightBytes;
+    if (residentLayers === 0) return Math.max(max, pinnedWeightBytes + activations);
     return Math.max(max, pinnedWeightBytes + residentKvBytes + activations);
   }, 0);
   const impossible = !fits && (!canOffload || floorBytesPerDevice > allocatableBytesPerDevice);
