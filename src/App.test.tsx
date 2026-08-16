@@ -241,6 +241,10 @@ describe('the Bench does not overclaim', () => {
       screen.getByText(/runs only by moving shed layers and their KV cache/i)
     ).toBeInTheDocument();
     expect(screen.queryByText(/does not fit and cannot spill/i)).not.toBeInTheDocument();
+
+    const verdicts = screen.getByRole('region', { name: 'Verdicts' });
+    expect(within(verdicts).getAllByText('Not modelled')).toHaveLength(2);
+    expect(within(verdicts).queryByText(/tok\/s per user/i)).not.toBeInTheDocument();
   });
 
   it('explains a full card as a full card, not as a Mac', async () => {

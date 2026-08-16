@@ -103,7 +103,7 @@ const STATE_STYLE: Record<CellState, { fill?: string; label: string; hint: strin
     hint: `${HOST_RAM_UNCHECKED} What does spill crosses the bus every token.`,
   },
   unpriced: {
-    fill: 'var(--amber-9)',
+    fill: colors.warning,
     label: 'Unmodelled host KV',
     hint: 'Runs with shed layers and KV cache in host RAM; speed is not modelled.',
   },

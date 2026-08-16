@@ -274,7 +274,7 @@ export function Telemetry({
    * project is built to avoid. The suppression lives here rather than in the engine, which stays
    * pure and unopinionated.
    */
-  const { unsupported, impossible } = evaluation.placement;
+  const { unsupported, impossible, unpricedHostKv } = evaluation.placement;
 
   /**
    * Two distinct ways a configuration cannot run, and both must silence the speed tiles.
@@ -284,7 +284,13 @@ export function Telemetry({
    * computes as though every weight were resident at full bandwidth — and paints a green
    * "Fast" beside a red "Will not run". The optimism is the danger, not the noise.
    */
-  const blocked = unsupported ?? (impossible ? 'Past the ceiling with nowhere to spill.' : null);
+  const blocked =
+    unsupported ??
+    (impossible
+      ? 'Past the ceiling with nowhere to spill.'
+      : unpricedHostKv
+        ? 'This placement runs with host-side KV, whose timing is not modelled.'
+        : null);
 
   const readings: Reading[] = blocked
     ? [
@@ -294,7 +300,7 @@ export function Telemetry({
           label,
           value: '—',
           unit: '',
-          tone: 'critical' as const,
+          tone: unpricedHostKv ? ('warning' as const) : ('critical' as const),
           // The same split the capacity tile makes one column over, on the same guard, so the
           // two can never diverge if a tunable discrete GPU ever lands: at a tunable ceiling
           // the placement is past a default rather than unrunnable, and a speed tile saying
@@ -302,14 +308,18 @@ export function Telemetry({
           // (#121).
           verdict: unsupported
             ? 'Unsupported'
-            : !canOffload && tunableCeiling
-              ? 'No estimate'
-              : 'Will not run',
+            : unpricedHostKv
+              ? 'Not modelled'
+              : !canOffload && tunableCeiling
+                ? 'No estimate'
+                : 'Will not run',
           detail: unsupported
             ? 'No estimate — this runtime cannot drive this hardware.'
-            : !canOffload && tunableCeiling
-              ? 'No estimate — past the default allocation, so there is no speed to report at the untuned ceiling.'
-              : 'No estimate — the model does not fit, so there is no speed to report.',
+            : unpricedHostKv
+              ? 'No estimate — host-side KV makes this placement runnable, but its speed is not modelled.'
+              : !canOffload && tunableCeiling
+                ? 'No estimate — past the default allocation, so there is no speed to report at the untuned ceiling.'
+                : 'No estimate — the model does not fit, so there is no speed to report.',
         })),
       ]
     : [
