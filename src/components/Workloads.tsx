@@ -113,6 +113,8 @@ export function Workloads({ evaluation, config }: { evaluation: Evaluation; conf
     verdicts.every((v) => v.fitness === 'fail' || v.fitness === 'unmeasured')
       ? verdicts[0].reason
       : undefined;
+  const sharedUnmeasured =
+    sharedReason !== undefined && verdicts.every((v) => v.fitness === 'unmeasured');
 
   return (
     <section aria-labelledby={headingId} className="panel p-[min(1.25rem,5vw)]">
@@ -141,8 +143,12 @@ export function Workloads({ evaluation, config }: { evaluation: Evaluation; conf
       </header>
 
       {sharedReason && (
-        <p className="mt-3 text-sm text-[var(--color-critical)]">
-          <span aria-hidden="true">▲ </span>
+        <p
+          className={`mt-3 text-sm ${
+            sharedUnmeasured ? 'text-[var(--color-warning)]' : 'text-[var(--color-critical)]'
+          }`}
+        >
+          <span aria-hidden="true">{sharedUnmeasured ? '◐ ' : '▲ '}</span>
           {sharedReason}
         </p>
       )}

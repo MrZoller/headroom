@@ -237,9 +237,10 @@ describe('the Bench does not overclaim', () => {
       useConfig.getState().set('deviceCount', 3);
     });
 
-    expect(
-      screen.getByText(/runs only by moving shed layers and their KV cache/i)
-    ).toBeInTheDocument();
+    const hostKvWarning = screen.getByText(/runs only by moving shed layers and their KV cache/i);
+    expect(hostKvWarning).toBeInTheDocument();
+    expect(hostKvWarning.closest('p')).toHaveClass('text-[var(--color-warning)]');
+    expect(hostKvWarning.closest('p')).toHaveTextContent('◐');
     expect(screen.queryByText(/does not fit and cannot spill/i)).not.toBeInTheDocument();
 
     const verdicts = screen.getByRole('region', { name: 'Verdicts' });

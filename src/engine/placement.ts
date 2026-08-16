@@ -972,8 +972,18 @@ export function planPlacement(
     if (!unpricedHostKv) return Math.max(max, bin.kvBytes + activations);
 
     const residentLayers = residentLayersOf(bin);
-    const residentKvBytes =
-      bin.layers > 0 ? (bin.kvBytes * residentLayers) / bin.layers : bin.kvBytes;
+    // The layers llama.cpp keeps are the tail of its resident window.  A layer count is not a
+    // cache divisor for hybrid models: a bin can contain both full-attention and sliding-window
+    // layers, whose KV costs differ by orders of magnitude.  Price the actual assigned layers
+    // that remain rather than their average cache cost.
+    const residentKvBytes = bin.layerIndices
+      .slice(Math.max(0, bin.layers - residentLayers))
+      .reduce(
+        (sum, index) =>
+          sum + layerKvBytes(model, index, usage.contextTokens, usage.kvPrecision, runtime) *
+            Math.max(1, usage.concurrency),
+        0
+      );
     const pinnedWeightBytes = bin.weightBytes - bin.layerWeightBytes;
     return Math.max(max, pinnedWeightBytes + residentKvBytes + activations);
   }, 0);
