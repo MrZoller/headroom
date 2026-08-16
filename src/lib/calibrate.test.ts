@@ -596,6 +596,12 @@ describe('what the third review round found', () => {
     expect(hasSubmittablePair([pair])).toBe(false);
   });
 
+  it('refuses to compare against a placement whose host-side KV is not modelled', () => {
+    const [pair] = compare(parseLlamaBench(JSON_OUTPUT), prediction({ unpricedHostKv: true }));
+    expect(pair.mismatch).toMatch(/host-side KV is not modelled/);
+    expect(hasSubmittablePair([pair])).toBe(false);
+  });
+
   it('makes no claim about the length when the window leaves no room to generate', () => {
     // The first version floored the expectation at one token, so a prompt filling the window
     // rejected every normal decode row against a length nothing can satisfy.

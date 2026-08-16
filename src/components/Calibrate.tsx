@@ -116,6 +116,7 @@ export function Calibrate({ evaluation }: { evaluation: Evaluation }) {
       deviceClass: device.class,
       deviceVendor: device.vendor,
       ...(evaluation.placement.impossible ? { impossible: true as const } : {}),
+      ...(evaluation.placement.unpricedHostKv ? { unpricedHostKv: true as const } : {}),
       kvType: LLAMA_KV_TYPES[config.kvPrecision],
       modelLayers: model.layers,
       /**

@@ -208,12 +208,14 @@ export function BudgetBar({
         ? ` — the card holding the most cache needs ${gibLabel(floorBytes)} of cache and overhead, which cannot be offloaded, so spilling every weight would still leave it over`
         : ` — the cache and overhead alone need ${gibLabel(floorBytes)}, and neither can be offloaded, so spilling every weight would still leave it over`
       : ' — and this memory is the machine’s own, so there is nowhere faster to spill to'
-    : placement.offloadFraction > 0
-      ? // The third near-copy of the spill claim, now carrying the one qualifier (#127): the
-        // conditional mood ("would") softened it, but the bar under it still renders the
-        // placement as achieved, and the engine never checked the host's RAM.
-        ` — ${percent(placement.offloadFraction)} of weights would spill to host RAM. ${HOST_RAM_UNCHECKED}`
-      : '';
+    : placement.unpricedHostKv
+      ? ` — shed layers and their KV cache would spill to host RAM. ${HOST_RAM_UNCHECKED}`
+      : placement.offloadFraction > 0
+        ? // The third near-copy of the spill claim, now carrying the one qualifier (#127): the
+          // conditional mood ("would") softened it, but the bar under it still renders the
+          // placement as achieved, and the engine never checked the host's RAM.
+          ` — ${percent(placement.offloadFraction)} of weights would spill to host RAM. ${HOST_RAM_UNCHECKED}`
+        : '';
 
   return (
     <section aria-labelledby={`${tableId}-title`} className="panel p-[min(1.25rem,5vw)]">

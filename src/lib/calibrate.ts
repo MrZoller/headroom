@@ -469,6 +469,8 @@ export interface Prediction {
   deviceVendor: string;
   /** True when the engine says this configuration does not run at all. */
   impossible?: boolean;
+  /** True when host-side KV makes the placement runnable but its rates are not modelled. */
+  unpricedHostKv?: boolean;
   /** Cache precision the figures were priced at — llama.cpp's `-ctk`/`-ctv` names. */
   kvType: string;
   /** The model's own layer count, so "all of them" can be recognised however it is spelled. */
@@ -588,6 +590,13 @@ function describeMismatch(
     reasons.push(
       `compared against a configuration this machine cannot run at all, so the predicted rates ` +
         `beside it describe nothing that could have produced this measurement`
+    );
+  }
+
+  if (prediction.unpricedHostKv === true) {
+    reasons.push(
+      `compared against a configuration whose host-side KV is not modelled, so the predicted rates ` +
+        `beside it cannot be checked against this measurement`
     );
   }
 
