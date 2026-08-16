@@ -578,6 +578,23 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
     expect(serving.reason).toMatch(/host RAM/i);
   });
 
+  it('reports a capacity failure when a workload is both unpriced and impossible', () => {
+    const unpricedButImpossible: Placement = { ...OVER, unpricedHostKv: true };
+    const chat = new Map(
+      judgeWorkloads({
+        selectedPlacement: RESIDENT,
+        usage: { contextTokens: 2048, concurrency: 1, promptTokens: 2048, kvPrecision: 'fp16' },
+        maxContextTokens: 200_000,
+        runnableContextTokens: 512,
+        evaluateAt: () => ({ ...STUB_SPEED, placement: unpricedButImpossible }),
+      }).map((v) => [v.workload.id, v])
+    ).get('chat')!;
+
+    expect(chat.fitness).toBe('fail');
+    expect(chat.reason).toMatch(/needs 1.5K/i);
+    expect(chat.reason).not.toMatch(/runs only by moving shed layers/i);
+  });
+
   it('quotes no four-user figure at all when four users cannot run', () => {
     /*
      * The class the two gates above were a subset of (found in review, third round).
