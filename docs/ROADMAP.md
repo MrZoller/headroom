@@ -844,6 +844,18 @@ default makes silence itself a claim. The guards that read the _prediction_ — 
 engine refuses, a runtime `llama-bench` cannot measure, a concurrency it cannot reproduce — fire
 whatever the paste contains, since no field in it could answer them.
 
+**The placement check compares llama.cpp slots, not two layer counts**
+([#208](https://github.com/MrZoller/headroom/issues/208)). A prediction of `N` resident repeating
+layers accepts `-ngl N+1`, because every positive llama.cpp value spends one slot on the output
+tensor; a prediction of zero accepts only `-ngl 0`. Fully resident runs accept any value at or above
+`L+1`, since llama.cpp clamps those values to the same placement. Bare `-ngl N` is not a legacy
+spelling of the partial placement and bare `-ngl L` is not a spelling of full residency: each leaves
+one repeating layer on the host that Headroom did not price. The panel emitted the former spelling
+between #169 and #204, but calibration now rejects those old runs rather than admitting a known
+different placement into the fitting corpus. Rejection copy names the pasted slot value, the
+repeating layers it actually loads, and the value Headroom emitted so those three quantities cannot
+read as a contradiction.
+
 What is worth recording here is the handful of causes **invisible in the numbers**, since those are
 the ones a reader gets wrong without noticing.
 

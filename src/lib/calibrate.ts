@@ -761,30 +761,16 @@ function describeMismatch(
    * measurement never paid.
    */
   /**
-   * **And "all of them" has more than one spelling**, which is where the two halves of this project
-   * disagreed with each other. llama.cpp counts the output tensor a position past the repeating
-   * blocks, so #136's emitter passes `layers + 1` for a fully-resident placement — and readers type
-   * `-ngl 99` for the same thing. Comparing against the layer count alone would have marked a run
-   * that followed Headroom's own command.
+   * `prediction.gpuLayers` counts repeating layers. llama.cpp's `n_gpu_layers`/`-ngl` counts the
+   * output tensor as one more slot whenever the value is positive. A priced placement of `N`
+   * repeating layers therefore has exactly one valid flag, `-ngl N + 1`; accepting bare `-ngl N`
+   * would admit a run with one more layer streamed from the host. The panel emitted that older
+   * spelling between #169 and #204, but #208 deliberately ends the compatibility tolerance rather
+   * than letting differently priced runs enter the calibration corpus.
    *
-   * So a fully-resident prediction accepts anything at or above the layer count.
-   *
-   * **A partial one accepts two values, and they are not two spellings of one count.** This is
-   * where #204 reaches across the panel. `prediction.gpuLayers` is a count of *repeating layers* —
-   * what the placement put on the card — while `n_gpu_layers` in a paste is llama.cpp's flag, which
-   * counts the output tensor a slot past them. `-ngl N + 1` is what loads `N` layers, and it is
-   * what the Launch panel now emits. `-ngl N` loads `N - 1` of them plus the table, which is a
-   * *different placement* — measurably so: repricing every partial configuration with that extra
-   * layer shed puts the median 2.2% off and 270 of 56,719 outside the ±30% band, worst case 60.4%
-   * on Kimi-K2 at Q5_K_M over four B200s.
-   *
-   * It is accepted anyway, deliberately and for one reason: **every spilling command this panel
-   * emitted between #169 and #204 was a bare `-ngl N`**, so those pastes exist and describe runs
-   * people actually made. That is a backwards-compatibility tolerance, not an equivalence, and it
-   * should be narrowed once those pastes have aged out — with the fully-resident arm above, which
-   * has the same hole and a far larger one: `>= modelLayers` accepts a bare `-ngl L`, i.e. `L - 1`
-   * layers against a prediction of no spill at all, on 148,151 configurations with 32.4% outside
-   * the band. Both are #208.
+   * Fully-resident values at or above `modelLayers + 1` are equivalent: llama.cpp clamps them to
+   * the same complete placement. Bare `-ngl modelLayers` is not equivalent; it leaves layer zero on
+   * the host while keeping the output tensor resident.
    *
    * **Not at zero, which is the one place the tolerance would swallow a whole category rather
    * than a layer.** A prediction of no GPU layers is either a `cpu-ram` machine or a card with no room
@@ -794,14 +780,21 @@ function describeMismatch(
    */
   if (measurement.gpuLayers !== undefined && prediction.gpuLayers !== undefined) {
     const allResident = prediction.gpuLayers >= prediction.modelLayers;
+    const pricedRepeatingLayers = Math.min(prediction.gpuLayers, prediction.modelLayers);
+    const expectedNgl =
+      pricedRepeatingLayers > 0 ? pricedRepeatingLayers + 1 : 0;
     const agrees = allResident
-      ? measurement.gpuLayers >= prediction.modelLayers
-      : measurement.gpuLayers === prediction.gpuLayers ||
-        (prediction.gpuLayers > 0 && measurement.gpuLayers === prediction.gpuLayers + 1);
+      ? measurement.gpuLayers >= prediction.modelLayers + 1
+      : measurement.gpuLayers === expectedNgl;
     if (!agrees) {
+      const measuredRepeatingLayers = Math.min(
+        prediction.modelLayers,
+        Math.max(0, measurement.gpuLayers - 1)
+      );
       reasons.push(
-        `run with ${measurement.gpuLayers} layers on the GPU where the placement above puts ` +
-          `${prediction.gpuLayers} of ${prediction.modelLayers} there`
+        `run with -ngl ${measurement.gpuLayers}, which loads ${measuredRepeatingLayers} of ` +
+          `${prediction.modelLayers} repeating layers on the GPU; the placement above prices ` +
+          `${pricedRepeatingLayers} and emits -ngl ${expectedNgl}`
       );
     }
   }
