@@ -498,6 +498,12 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
       selectedPlacement.unsupported ?? 'The model does not fit and cannot spill to host RAM.';
     return WORKLOADS.map((w) => ({ workload: w, fitness: 'fail' as const, reason }));
   }
+  if (selectedPlacement.unpricedHostKv) {
+    const reason =
+      'This configuration runs only by moving shed layers and their KV cache to host RAM. ' +
+      'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.';
+    return WORKLOADS.map((w) => ({ workload: w, fitness: 'fail' as const, reason }));
+  }
 
   /**
    * End-to-end batch throughput: prompts read *and* answers written.
@@ -1046,11 +1052,13 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
       // answers "can this machine serve several people", which is a question about the machine.
       pass:
         servingGood.holds &&
+        !servingGood.measured.placement.unpricedHostKv &&
         servingGood.measured.decode.perUserTokensPerSec >= BARS.serving.good.rate &&
         servingGood.measured.placement.headroomBytes > 0 &&
         servingGood.measured.prefill.ttftSeconds <= BARS.serving.good.ttft,
       tight:
         servingTight.holds &&
+        !servingTight.measured.placement.unpricedHostKv &&
         servingTight.measured.decode.perUserTokensPerSec >= BARS.serving.tight.rate &&
         servingTight.measured.prefill.ttftSeconds <= BARS.serving.tight.ttft,
       why: () => {
@@ -1109,6 +1117,13 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             ? `${per} need ${gibUp(floorBytesPerDevice)} of cache and overhead per device — which offload cannot move — against ${ceiling}.`
             : `${per} need ${gibUp(usedBytesPerDevice)} per device against ${ceiling}, and this machine has no host tier to spill the weights to.`;
         }
+        if (tight.placement.unpricedHostKv) {
+          return (
+            `At ${usersWord(BARS.serving.tight.users)}, llama.cpp must move shed layers and their ` +
+            `KV cache to host RAM. Headroom does not check that RAM or model the mixed CPU/GPU ` +
+            `placement, so it cannot grade serving performance.`
+          );
+        }
         if (tight.decode.perUserTokensPerSec < BARS.serving.tight.rate) {
           return `${fmt(tight.decode.perUserTokensPerSec)} tok/s each at ${usersWord(BARS.serving.tight.users)}, under the ${BARS.serving.tight.rate} tok/s a shared deployment needs — and sharing the device further cannot raise it.`;
         }
@@ -1138,6 +1153,10 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             !servingGood.holds &&
               `it holds a turn each for ${usersWord(BARS.serving.tight.users)} but not for the ${BARS.serving.good.users} a serving deployment is graded at`,
             servingGood.holds &&
+              good.placement.unpricedHostKv &&
+              `at ${usersWord(BARS.serving.good.users)} llama.cpp moves shed layers and their KV cache to unchecked host RAM, a mixed CPU/GPU placement Headroom does not model`,
+            servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.decode.perUserTokensPerSec < BARS.serving.good.rate &&
               `${fmt(good.decode.perUserTokensPerSec)} tok/s each at ${usersWord(BARS.serving.good.users)} is under the ${BARS.serving.good.rate} tok/s a served user expects`,
             /*
@@ -1153,6 +1172,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
              * fraction and negative headroom. `holds` above excludes both.
              */
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.placement.offloadFraction > 0 &&
               'the weights are spilling to host RAM, so every additional user makes that worse rather than simply not fitting',
             /*
@@ -1166,10 +1186,12 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
              * builder exists to prevent, reachable through the one branch it did not cover.
              */
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.placement.offloadFraction === 0 &&
               good.placement.headroomBytes <= 0 &&
               'it uses every allocatable byte at four users, so there is nothing left for a fifth',
             servingGood.holds &&
+              !good.placement.unpricedHostKv &&
               good.prefill.ttftSeconds > BARS.serving.good.ttft &&
               `${wait(good.prefill.ttftSeconds)} to first token across ${usersWord(BARS.serving.good.users)} of queued prompts is longer than a served user waits`
           ) ??

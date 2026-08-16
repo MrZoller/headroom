@@ -136,6 +136,19 @@ export interface Placement {
    * charged every serial stage for a single stage's overflow.
    */
   offloadFraction: number;
+  /**
+   * True when fitting the pinned tensors requires llama.cpp to move shed layers' KV to host RAM.
+   *
+   * The placement is runnable, but the current roofline prices all KV at device bandwidth and has
+   * no host-RAM capacity input. Consumers must therefore present its performance as unmodelled,
+   * rather than calling it impossible or grading the numeric speed estimates.
+   *
+   * This follows llama.cpp's layer placement rather than assuming transparent VRAM fallback:
+   * `src/llama-model.cpp` assigns the non-GPU prefix to `cpu_dev`, and
+   * `src/llama-kv-cache.cpp` allocates each layer's KV buffer on `model.dev_layer(il)`. Verified at
+   * ggml-org/llama.cpp commit ece963f on 15 August 2026.
+   */
+  unpricedHostKv: boolean;
   /** True when the configuration is over budget and offload cannot rescue it. */
   impossible: boolean;
 
@@ -842,20 +855,22 @@ export function planPlacement(
    * its ceiling had its resident stages billed host-bus time all the same, overstating decode and
    * TTFT together.
    *
-   * A device can only spill what it holds, hence the per-bin clamp: past that point the KV and the
-   * activations are what is over budget, and no amount of weight movement rescues it — which is the
-   * `impossible` test below rather than a bigger fraction here.
+   * A device can only spill repeating-layer weights. Pinned tensors stay resident whenever any
+   * layer does; if shedding every layer still leaves the bin over its ceiling, llama.cpp moves the
+   * shed layers' KV to the host too. That makes the placement runnable but its performance unpriced,
+   * recorded by `unpricedHostKv` rather than pretending part of a pinned tensor spilled.
    *
    * The uniform case is unchanged by construction. Every rank holds the same load, so summing `n`
    * identical overflows over `n` identical shards gives back exactly the per-device ratio this used
    * to compute.
    */
+  const overflowOf = (bin: DeviceLoad) =>
+    Math.max(0, loadOf(bin) + activations - allocatableBytesPerDevice);
+  const unpricedHostKv =
+    canOffload && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
   const spilledOf = (bin: DeviceLoad) =>
     canOffload
-      ? Math.min(
-          Math.max(0, loadOf(bin) + activations - allocatableBytesPerDevice),
-          bin.weightBytes
-        )
+      ? Math.min(overflowOf(bin), bin.layerWeightBytes)
       : 0;
   const spilledBytes = binsPerEntry * bins.reduce((sum, bin) => sum + spilledOf(bin), 0);
   // Against what the devices were asked to hold rather than against the file — see
@@ -881,7 +896,7 @@ export function planPlacement(
    * against a 2 GiB ceiling reported 7 of 28 layers where 4 is what the card can hold. The two
    * readings agree exactly whenever nothing spills, which is most of the catalog.
    *
-   * **The whole spill is charged against the layers, and that is llama.cpp's own eviction order
+   * **The weight spill is charged against the layers, and that is llama.cpp's own eviction order
    * rather than a cautious approximation of it** (#202). An earlier version of this comment argued
    * the opposite — that llama.cpp sheds the output tensor before any layer, so this under-reports —
    * and it was backwards. `i_gpu_start = max(n_layer_all + 1 - ngl, 0)` shifts the resident window
@@ -892,10 +907,11 @@ export function planPlacement(
    * ggml-org/llama.cpp commit `360e134`, and measured: an 18-layer model at `-ngl 1` has the output
    * table on the GPU and nothing else.
    *
-   * **The count is unchanged, because the true rule is what the count already assumed.** A device
+   * **The count follows the true rule the count already assumed.** A device
    * over budget keeps its fixed tensors and gives up repeating layers from the front, so every
-   * overflowing byte really does come out of `layerWeightBytes`, and the generous reading is not the
-   * other defensible option — it is a placement no `-ngl` expresses. It would let a spilling device
+   * overflowing weight byte really does come out of `layerWeightBytes`; overflow beyond that moves
+   * the shed layers' KV to the host rather than the pinned tensors. The generous weight reading is
+   * not the other defensible option — it is a placement no `-ngl` expresses. It would let a device
    * report every layer resident, which `launch.ts` turns into `layers + 1`, and any `-ngl` holding
    * all `layers` repeating blocks is at least `layers + 1` and therefore holds the output too. There
    * is no flag for "every layer, output evicted"; asking for one is an OOM on load.
@@ -998,6 +1014,7 @@ export function planPlacement(
     utilization: usedBytesPerDevice / allocatableBytesPerDevice,
     floorBytesPerDevice,
     offloadFraction,
+    unpricedHostKv,
     impossible,
     assignment,
     unsupported,
