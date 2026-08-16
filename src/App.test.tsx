@@ -234,10 +234,11 @@ describe('the Bench does not overclaim', () => {
       useConfig.getState().set('deviceCount', 3);
     });
 
-    expect(screen.getAllByText('Will not run')).toHaveLength(2);
+    expect(screen.getAllByText('Will not run')).toHaveLength(4);
 
     const verdicts = screen.getByRole('region', { name: 'Verdicts' });
-    expect(within(verdicts).getAllByText('Will not run')).toHaveLength(1);
+    expect(within(verdicts).getAllByText('Will not run')).toHaveLength(3);
+    expect(within(verdicts).queryByText('Not modelled')).not.toBeInTheDocument();
     expect(within(verdicts).queryByText(/tok\/s per user/i)).not.toBeInTheDocument();
 
     const budget = screen.getByRole('region', { name: /memory budget/i });

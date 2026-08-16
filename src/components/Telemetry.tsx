@@ -300,7 +300,7 @@ export function Telemetry({
           label,
           value: '—',
           unit: '',
-          tone: unpricedHostKv ? ('warning' as const) : ('critical' as const),
+          tone: unpricedHostKv && !impossible ? ('warning' as const) : ('critical' as const),
           // The same split the capacity tile makes one column over, on the same guard, so the
           // two can never diverge if a tunable discrete GPU ever lands: at a tunable ceiling
           // the placement is past a default rather than unrunnable, and a speed tile saying
@@ -308,14 +308,14 @@ export function Telemetry({
           // (#121).
           verdict: unsupported
             ? 'Unsupported'
-            : unpricedHostKv
+            : unpricedHostKv && !impossible
               ? 'Not modelled'
               : !canOffload && tunableCeiling
                 ? 'No estimate'
                 : 'Will not run',
           detail: unsupported
             ? 'No estimate — this runtime cannot drive this hardware.'
-            : unpricedHostKv
+            : unpricedHostKv && !impossible
               ? 'No estimate — host-side KV makes this placement runnable, but its speed is not modelled.'
               : !canOffload && tunableCeiling
                 ? 'No estimate — past the default allocation, so there is no speed to report at the untuned ceiling.'
