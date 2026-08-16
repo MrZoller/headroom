@@ -493,17 +493,17 @@ describe('the controls that drive every figure explain what they are', () => {
       // Five rows write `**strong**`, two write `*emphasis*` and nine write backticked identifiers;
       // nothing rendered any of them, so the picker printed literal asterisks. Moving the prose to
       // its own region without this would have moved the glitch with it.
-      await user.selectOptions(hardware(), 'mac-studio-m3-ultra-96');
+      await user.selectOptions(hardware(), 'mac-studio-m2-ultra-192');
       await user.click(toggle());
 
       const region = detail();
       expect(region).not.toBeNull();
-      expect(region!.querySelector('strong')?.textContent).toMatch(/60-core GPU/);
+      expect(region!.querySelector('strong')?.textContent).toMatch(/GPU bin is in the name/);
       expect(region!.querySelector('code')?.textContent).toBe('iogpu.wired_limit_mb');
       // Verbatim apart from the marks: the note is provenance, and losing a clause of it in a
       // renderer would be worse than printing the asterisks.
       expect(region!.textContent).toBe(
-        getDevice('mac-studio-m3-ultra-96').note!.replace(/\*\*|\*|`/g, '')
+        getDevice('mac-studio-m2-ultra-192').note!.replace(/\*\*|\*|`/g, '')
       );
 
       // The single-asterisk register, which the first version of this renderer did not read: two
