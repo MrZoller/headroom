@@ -58,6 +58,8 @@ describe('device pricing copy', () => {
     expect(devicePriceSummary(getDevice('rtx-4090'))).toMatch(
       /\$1,599 US launch list price per card, before tax, checked 2026-08-16, discontinued/
     );
-    expect(devicePriceSummary(getDevice('mi355x'))).toMatch(/sold by quote.*2026-08-16/);
+    expect(devicePriceSummary(getDevice('mi355x'))).toMatch(
+      /sold by quote\. Checked 2026-08-16\.$/
+    );
   });
 });

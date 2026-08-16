@@ -57,7 +57,7 @@ export function devicePriceClaim(device: CatalogDevice, count = 1): string {
 export function devicePriceSummary(device: CatalogDevice): string {
   const price = device.price;
   if (price.kind === 'unavailable') {
-    return `${unavailableReason(price.reason)} Checked ${price.checkedAt}`;
+    return `${unavailableReason(price.reason)} ${checked(price.checkedAt)}`;
   }
   return `${USD.format(price.usd)} US launch list price ${price.unit === 'card' ? 'per card' : 'for the represented machine'}, before tax, checked ${price.checkedAt}${price.availability === 'discontinued' ? ', discontinued' : ''}.`;
 }
