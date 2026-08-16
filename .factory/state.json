@@ -5,7 +5,7 @@
   "plan_approved": false,
   "current_task": "T8",
   "branch": "factory/t8-defer-matrix",
-  "pr": null,
-  "hold": false,
-  "updated": "2026-08-16T15:07:41Z"
+  "pr": 226,
+  "hold": true,
+  "updated": "2026-08-16T15:38:53Z"
 }

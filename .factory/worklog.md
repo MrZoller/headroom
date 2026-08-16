@@ -118,3 +118,11 @@ Synced the Dependabot guard from opencode-factory#8 into claude-code-review.yml:
 - CI build/browser checks and the Claude Code Review workflow passed on the merged head. All seven review threads were resolved: five blocking pricing defects were fixed before merge, the duplicate dead-field concern was superseded by its fix, and the verifier-classified price-union typo-coverage minor was parked in T9. There are no refuted findings.
 - Late-verdict sweep initialized PR #225's cursor at 7 bot review/comment verdicts; all were present before the merge, so nothing was orphaned into the backlog. The cursor remains during the 30-minute window.
 - Marked T7 complete and cleared its recorded task, branch, PR, and hold state.
+
+## 2026-08-16 — T8 deferred prerendered Matrix
+
+- Added a `useSyncExternalStore` hydration seam: server output and the client's hydration snapshot omit the cross-catalog Matrix, then the unchanged Matrix mounts from the client snapshot. Non-prerendered `createRoot` paths still render it immediately.
+- Raw route guards retain the selected capacity verdict, memory budget and breakdown, prefill, and decode figures. Hydration and browser tests prove the raw response has no Matrix, JavaScript-disabled pages still paint selected figures, and JavaScript-enabled pages add the Matrix without recoverable errors or geometry regressions.
+- Measurements: the root page fell from 840,127 to 51,429 raw bytes and 37,509 to 11,043 gzip bytes; the whole `dist/` tree fell from 165,336 to 10,776 KiB. `npm run build` emitted 199 routes and 9.7 MiB of prerendered HTML.
+- Verification: `npm test` (42 files, 1,538 tests passed); `npm run lint`; `npm run format:check`; `npm run build`; `npm run test:e2e` (171 passed). Both local review lenses returned CLEAN and the adversarial verifier returned CLEAR.
+- Opened held major-task PR [#226](https://github.com/MrZoller/headroom/pull/226) at head `0ae2552`. The repository has no hold label, so durable `state.hold: true` and the major classification enforce the hold; human merge authority is required after automation completes.
