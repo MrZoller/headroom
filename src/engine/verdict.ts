@@ -776,6 +776,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
 
   return [
     judge('chat', {
+      unpriced: at('chat').placement.unpricedHostKv,
       // Even a short conversation needs its own turn to fit — at 128 users on a small card the
       // runnable context can fall below 1K, and no amount of speed rescues that.
       pass:
@@ -798,6 +799,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${fmt(rateOf('chat'))} tok/s, ${wait(chatTtft)} to first token on a short message.`),
     }),
     judge('completion', {
+      unpriced: at('completion').placement.unpricedHostKv,
       // A suggestion that arrives after you have typed the next line is worse than none.
       pass:
         fits('completion') &&
@@ -834,6 +836,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${wait(completionTtft)} to first token stays inside the window where a suggestion helps.`),
     }),
     judge('agent', {
+      unpriced: agentMeasured.placement.unpricedHostKv,
       // Agents need all three: speed, headroom, and a prompt pass that does not stall each turn.
       // Omitting the latency term is what let a machine fail chat while "passing" this, which is
       // backwards — an agent does everything chat does, over a far larger prompt.
@@ -899,6 +902,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                   `Holds ${ctx(runnableContextTokens)}; ${fmt(agentRate)} tok/s and ${wait(agentTtft)} per turn with a ${ctx(agentSession)} session in the cache.`),
     }),
     judge('rag', {
+      unpriced: at('rag').placement.unpricedHostKv,
       // The answer is short; the prompt is not. This lives or dies on prefill — but speed is
       // moot if the 32K prompt has nowhere to live: prefill is estimated at the archetype's own
       // prompt length, which deliberately ignores the configured context, so the fit has to be
@@ -937,6 +941,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                 `${fmt(ragPerDocumentTokensPerSec)} tok/s through a document — ${wait(ragPrefill.ttftSeconds)} for a 32K one.`),
     }),
     judge('long-context', {
+      unpriced: longMeasured.placement.unpricedHostKv,
       // Offload-aware: the resident figure is zero for any spilled configuration, which would
       // fail a card that holds 128K of KV perfectly well once its weights are on the host.
       //
@@ -1010,6 +1015,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
                   : `Holds ${ctx(runnableContextTokens)} at this concurrency, ${wait(longMeasured.prefill.ttftSeconds)} to read ${ctx(longPrompt)}.`)),
     }),
     judge('batch', {
+      unpriced: at('batch').placement.unpricedHostKv,
       // No latency budget at all — but the request still has to fit, and the throughput has to
       // be measured at the batch scenario rather than at whatever the slider says.
       // Rescaled with the metric. These were 5 and 1 against decode-only throughput; end-to-end
@@ -1032,6 +1038,9 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             : `${fmt(batchAggregate())} tok/s end to end${batchWorkers()}, prompts included, makes even an overnight run small.`,
     }),
     judge('serving', {
+      unpriced:
+        servingGood.measured.placement.unpricedHostKv ||
+        servingTight.measured.placement.unpricedHostKv,
       // Every concurrent user brings their own cache, which is what actually runs out.
       //
       // And every concurrent user brings their own prompt, which is what they wait on. Capacity
@@ -1204,12 +1213,20 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
 
 function judge(
   id: string,
-  { pass, tight, why }: { pass: boolean; tight: boolean; why: () => string }
+  {
+    pass,
+    tight,
+    why,
+    unpriced = false,
+  }: { pass: boolean; tight: boolean; why: () => string; unpriced?: boolean }
 ): WorkloadVerdict {
   return {
     workload: workload(id),
-    fitness: pass ? 'good' : tight ? 'tight' : 'fail',
-    reason: why(),
+    fitness: unpriced ? 'fail' : pass ? 'good' : tight ? 'tight' : 'fail',
+    reason: unpriced
+      ? 'This scenario runs only by moving shed layers and their KV cache to host RAM. ' +
+        'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.'
+      : why(),
   };
 }
 

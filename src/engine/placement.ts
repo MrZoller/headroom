@@ -866,9 +866,16 @@ export function planPlacement(
    */
   const overflowOf = (bin: DeviceLoad) =>
     Math.max(0, loadOf(bin) + activations - allocatableBytesPerDevice);
-  const unpricedHostKv = canOffload && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
+  // Only llama.cpp's layer placement leaves whole layers (and their KV) on the host. Tensor
+  // parallel runtimes spill weight shards, not layers, so retain their existing whole-weight
+  // accounting rather than applying a llama.cpp-specific floor to their launch commands.
+  const hostKvFallback = canOffload && runtime.parallelism === 'layer';
+  const unpricedHostKv =
+    hostKvFallback && bins.some((bin) => overflowOf(bin) > bin.layerWeightBytes);
   const spilledOf = (bin: DeviceLoad) =>
-    canOffload ? Math.min(overflowOf(bin), bin.layerWeightBytes) : 0;
+    canOffload
+      ? Math.min(overflowOf(bin), hostKvFallback ? bin.layerWeightBytes : bin.weightBytes)
+      : 0;
   const spilledBytes = binsPerEntry * bins.reduce((sum, bin) => sum + spilledOf(bin), 0);
   // Against what the devices were asked to hold rather than against the file — see
   // `offloadFraction`'s docblock. The two are the same number everywhere but a discrete-GPU rig
@@ -953,18 +960,23 @@ export function planPlacement(
         : shares.reduce((min, s) => Math.min(min, s.residentLayers), model.layers),
   };
 
-  // Even offloading every weight leaves KV and activations, which must sit on the device. Taken
-  // over every device rather than the busiest one: `busiest` is heaviest by *combined* load, and on
-  // a hybrid model the card holding the most cache is the one given fewer layers — so a rig can be
-  // impossible at a device that is not the one this readout describes. Carried on the result rather
-  // than recomputed by the callers, so the panels explaining the refusal quote the device that
-  // caused it; a sentence built from `kvBytesPerDevice` instead contradicted its own ceiling.
+  // Even offloading every weight leaves KV and activations on device. A llama.cpp host-KV fallback
+  // is different: its pinned tensors and KV for the layers still resident on a card remain there,
+  // while shed layers' KV follows those layers to host RAM. Taken over every device rather than the
+  // busiest one: `busiest` is heaviest by *combined* load, and on a hybrid model the card holding
+  // the most cache is the one given fewer layers — so a rig can be impossible at a device that is
+  // not the one this readout describes. Carried on the result rather than recomputed by callers.
   // `reduce`, not `Math.max(...spread)`: the spread throws `RangeError` past ~65k arguments, and a
   // bin list is only bounded by the model's layer count.
-  const floorBytesPerDevice = bins.reduce(
-    (max, bin) => Math.max(max, bin.kvBytes + activations),
-    0
-  );
+  const floorBytesPerDevice = bins.reduce((max, bin) => {
+    if (!unpricedHostKv) return Math.max(max, bin.kvBytes + activations);
+
+    const residentLayers = residentLayersOf(bin);
+    const residentKvBytes =
+      bin.layers > 0 ? (bin.kvBytes * residentLayers) / bin.layers : bin.kvBytes;
+    const pinnedWeightBytes = bin.weightBytes - bin.layerWeightBytes;
+    return Math.max(max, pinnedWeightBytes + residentKvBytes + activations);
+  }, 0);
   const impossible = !fits && (!canOffload || floorBytesPerDevice > allocatableBytesPerDevice);
 
   const drives = runtime.supports.some(

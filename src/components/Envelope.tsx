@@ -102,6 +102,11 @@ const STATE_STYLE: Record<CellState, { fill?: string; label: string; hint: strin
      */
     hint: `${HOST_RAM_UNCHECKED} What does spill crosses the bus every token.`,
   },
+  unpriced: {
+    fill: 'var(--amber-9)',
+    label: 'Unmodelled host KV',
+    hint: 'Runs with shed layers and KV cache in host RAM; speed is not modelled.',
+  },
   over: { fill: colors.critical, label: 'Will not run', hint: 'Past what this hardware can hold.' },
   unsupported: {
     fill: colors.critical,
@@ -1007,6 +1012,7 @@ function describeCell(cell: EnvelopeCell): string {
     return cell.overBecause === 'allocation' ? PAST_DEFAULT_ALLOCATION : STATE_STYLE.over.label;
   }
   if (cell.state === 'unsupported') return STATE_STYLE.unsupported.label;
+  if (cell.state === 'unpriced') return STATE_STYLE.unpriced.label;
   const why =
     cell.tightBecause === 'capacity'
       ? ' (near the ceiling)'

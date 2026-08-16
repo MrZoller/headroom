@@ -54,6 +54,8 @@ export interface MatrixCell {
   evaluated: boolean;
   /** Why not, when it does not. */
   blockedBy?: string;
+  /** True when llama.cpp needs host-side KV which the performance model cannot price. */
+  unpricedHostKv?: boolean;
   /**
    * Set when the cell is over the *default* allocation on a machine that lets you raise it.
    *
@@ -120,7 +122,7 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
       const rig = { device, count: deviceCount };
       const placement = planPlacement(model, quant, cellUsage, rig, runtime);
 
-      if (placement.unsupported || placement.impossible) {
+      if (placement.unsupported || placement.impossible || placement.unpricedHostKv) {
         // Shared with the Bench's banner, which asks the same question of a single placement — see
         // `wasEvaluated`. Absent an `unsupported`, the bytes were counted and came up short, so the
         // cell's verdict did come from whatever format the row was scored at.
@@ -136,7 +138,13 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
           runs: false,
           evaluated,
           blockedBy:
-            placement.unsupported ?? (raiseable ? 'Past the default allocation' : 'Does not fit'),
+            placement.unsupported ??
+            (placement.unpricedHostKv
+              ? 'Requires host-side KV that Headroom cannot model'
+              : raiseable
+                ? 'Past the default allocation'
+                : 'Does not fit'),
+          ...(placement.unpricedHostKv ? { unpricedHostKv: true } : {}),
           ...(raiseable ? { raiseCeilingWouldHelp: true } : {}),
           utilization: placement.utilization,
           offloadFraction: 0,

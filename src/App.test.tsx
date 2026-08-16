@@ -214,7 +214,7 @@ describe('the Bench does not overclaim', () => {
    * different card, and printed a figure comfortably *under* the ceiling it was citing as the
    * reason. A predicate and its sentence are one claim.
    */
-  it('quotes the card that made it impossible, and says it is not the one being drawn', async () => {
+  it('does not call a host-KV fallback impossible', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -237,18 +237,10 @@ describe('the Bench does not overclaim', () => {
       useConfig.getState().set('deviceCount', 3);
     });
 
-    // The refusal names the card it belongs to rather than implying the one above it — "the card
-    // holding the most cache", not "the busiest card", because the engine's busiest device is
-    // busiest by combined load and in this split is the one being drawn. Its quantity is named in
-    // full: `floorBytesPerDevice` is cache plus activations, the term the segments label
-    // Overhead, with a tail whose subject is that singular figure. The shared tail it replaced
-    // counted a pair ("and neither can be offloaded") this branch never names (#128).
     expect(
-      screen.getByText(/the card holding the most cache needs .* of cache and overhead/i)
+      screen.getByText(/runs only by moving shed layers and their KV cache/i)
     ).toBeInTheDocument();
-    expect(screen.getByText(/which cannot be offloaded/i)).toBeInTheDocument();
-    expect(screen.queryByText(/neither can be offloaded/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/the cache and overhead alone need/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/does not fit and cannot spill/i)).not.toBeInTheDocument();
   });
 
   it('explains a full card as a full card, not as a Mac', async () => {

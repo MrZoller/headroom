@@ -11,6 +11,8 @@ import {
   DGX_SPARK,
   MAC_STUDIO_M3_ULTRA_256,
   MAC_STUDIO_M3_ULTRA_512,
+  LLAMA_32_3B,
+  RTX_5080,
 } from './fixtures';
 import { LLAMA_CPP, MLX } from './fixtures';
 import { MEASURE_DIRECTION } from './measure';
@@ -55,6 +57,24 @@ describe('the model-by-device grid', () => {
       for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {
         expect(measureValue(cell, measure)).toBeUndefined();
       }
+    }
+  });
+
+  it('withholds numeric readings for a host-KV fallback', () => {
+    const [[cell]] = computeMatrix({
+      models: [LLAMA_32_3B],
+      devices: [RTX_5080],
+      quantFor: () => getQuant('bf16'),
+      runtime: LLAMA_CPP,
+      usage: { contextTokens: 128 * 1024, concurrency: 4, kvPrecision: 'fp16' },
+      deviceCount: 4,
+    });
+
+    expect(cell.runs).toBe(false);
+    expect(cell.unpricedHostKv).toBe(true);
+    expect(cell.blockedBy).toMatch(/host-side KV/i);
+    for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {
+      expect(measureValue(cell, measure)).toBeUndefined();
     }
   });
 

@@ -1318,9 +1318,7 @@ describe('a placement the engine refused produces no commands at all', () => {
     }
   });
 
-  it('refuses an impossible placement, where no flag rescues the arithmetic', () => {
-    // Cache and activations alone over the ceiling: offload cannot move them, so a command would
-    // OOM on load however it were flagged.
+  it('keeps a host-KV fallback command runnable but warns that it is unmodelled', () => {
     const over = input(
       DEEPSEEK_V3,
       getQuant('q4_k_m'),
@@ -1329,11 +1327,12 @@ describe('a placement the engine refused produces no commands at all', () => {
       1,
       usage({ contextTokens: 131072, concurrency: 64 })
     );
-    expect(over.placement.impossible).toBe(true);
+    expect(over.placement.impossible).toBe(false);
+    expect(over.placement.unpricedHostKv).toBe(true);
 
-    for (const c of launchCommands(over)) {
-      expect(reason(c.serve)).toMatch(/does not run/i);
-    }
+    const serve = commands(over)['llama-server'].serve;
+    if (!serve.ok) throw new Error('unreachable');
+    expect(serve.notes.join(' ')).toMatch(/shed layers and their KV cache in host RAM/i);
   });
 
   it('emits nothing for a runtime with no launcher registered', () => {
@@ -1407,8 +1406,7 @@ describe('what review found, kept as tests', () => {
     expect(refused).not.toMatch(/cache and activations alone/i);
   });
 
-  it('still blames the cache when the cache really is what is over', () => {
-    // The other arm, so the split above is a split rather than a rewording.
+  it('does not present an all-device cache OOM after host-KV fallback', () => {
     const cacheBound = input(
       DEEPSEEK_V3,
       getQuant('q4_k_m'),
@@ -1418,10 +1416,10 @@ describe('what review found, kept as tests', () => {
       usage({ contextTokens: 131072, concurrency: 64 })
     );
 
-    expect(cacheBound.placement.floorBytesPerDevice).toBeGreaterThan(
-      cacheBound.placement.allocatableBytesPerDevice
-    );
-    expect(reason(commands(cacheBound)['llama-server'].serve)).toMatch(/cache and activations/i);
+    expect(cacheBound.placement.unpricedHostKv).toBe(true);
+    const serve = commands(cacheBound)['llama-server'].serve;
+    if (!serve.ok) throw new Error('unreachable');
+    expect(serve.notes.join(' ')).toMatch(/does not check that host capacity/i);
   });
 
   it('never writes to a bare Modelfile, which is the reader’s own', () => {

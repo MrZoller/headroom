@@ -22,6 +22,8 @@ export type CellState =
   | 'tight'
   /** Runs only because weights spill to host RAM. */
   | 'offloaded'
+  /** Runs only with host-side KV that the performance model cannot price. */
+  | 'unpriced'
   /** Over what the hardware can hold. */
   | 'over'
   /**
@@ -165,6 +167,17 @@ export function computeEnvelope(request: EnvelopeRequest): EnvelopeGrid {
           concurrency,
           state: 'over' as const,
           overBecause: raiseable ? ('allocation' as const) : ('capacity' as const),
+          tokensPerSec: 0,
+          ttftSeconds: 0,
+          utilization: placement.utilization,
+        };
+      }
+
+      if (placement.unpricedHostKv) {
+        return {
+          contextTokens,
+          concurrency,
+          state: 'unpriced' as const,
           tokensPerSec: 0,
           ttftSeconds: 0,
           utilization: placement.utilization,

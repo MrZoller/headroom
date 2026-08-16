@@ -692,15 +692,10 @@ describe('layer splits are sized, not divided', () => {
         LLAMA_CPP
       );
 
-      expect(p.impossible).toBe(true);
-      // The floor that actually refused it is over the ceiling...
-      expect(p.floorBytesPerDevice).toBeGreaterThan(p.allocatableBytesPerDevice);
-      // ...and it is not the floor of the device this readout describes, which is comfortably
-      // under it. Rebuilding the sentence from these two fields printed a figure that disproved
-      // the refusal beside it.
-      expect(p.kvBytesPerDevice + p.activationBytesPerDevice).toBeLessThan(
-        p.allocatableBytesPerDevice
-      );
+      // The previous all-device KV floor rejected this placement even though the overloaded card
+      // can shed its layers and their cache to host RAM.
+      expect(p.impossible).toBe(false);
+      expect(p.unpricedHostKv).toBe(true);
     });
 
     it('keeps the floor and the busiest device together whenever every device holds the same', () => {
@@ -716,10 +711,12 @@ describe('layer splits are sized, not divided', () => {
             runtime
           );
           if (p.unsupported) continue;
-          expect(p.floorBytesPerDevice).toBeCloseTo(
-            p.kvBytesPerDevice + p.activationBytesPerDevice,
-            6
-          );
+          if (!p.unpricedHostKv) {
+            expect(p.floorBytesPerDevice).toBeCloseTo(
+              p.kvBytesPerDevice + p.activationBytesPerDevice,
+              6
+            );
+          }
         }
       }
     });
@@ -1497,6 +1494,19 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
       expect(p.offloadFraction).toBeGreaterThan(0);
       expect(p.unpricedHostKv).toBe(false);
       expect(p.assignment.residentLayers).toBeGreaterThan(0);
+    });
+
+    it('does not apply llama.cpp layer fallback to tensor-parallel vLLM', () => {
+      const p = planPlacement(
+        DEEPSEEK_V3,
+        getQuant('fp8'),
+        { contextTokens: 128 * 1024, concurrency: 4, kvPrecision: 'fp16' },
+        { device: RTX_5090, count: 1 },
+        VLLM
+      );
+
+      expect(p.unpricedHostKv).toBe(false);
+      expect(p.floorBytesPerDevice).toBeCloseTo(p.kvBytesPerDevice + p.activationBytesPerDevice, 6);
     });
   });
 });
