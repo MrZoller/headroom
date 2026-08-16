@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type KeyboardEvent,
 } from 'react';
 import {
@@ -73,10 +74,29 @@ const subscribeToClient = () => () => undefined;
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
 
+/**
+ * The table's chrome (heading, controls, rotated labels, legend, and readout) is taller on a
+ * touch layout. Keep it separate from the row calculation: catalog growth must add exactly one
+ * rendered-cell height to the SSR reservation rather than relying on a stale whole-panel guess.
+ */
+const MATRIX_CHROME_REM = { fine: 50, coarse: 81 } as const;
+
 export function DeferredMatrix({ config }: { config: Config }) {
   const show = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot);
+  const { models } = comparisonGrid();
   return (
-    <div data-matrix-reservation className="min-h-[85rem]" aria-hidden={!show}>
+    <div
+      data-matrix-reservation
+      className="min-h-[calc(var(--matrix-rows)*1.75rem+var(--matrix-chrome-fine))] [@media(pointer:coarse)]:min-h-[calc(var(--matrix-rows)*2.75rem+var(--matrix-chrome-coarse))]"
+      style={
+        {
+          '--matrix-rows': models.length,
+          '--matrix-chrome-fine': `${MATRIX_CHROME_REM.fine}rem`,
+          '--matrix-chrome-coarse': `${MATRIX_CHROME_REM.coarse}rem`,
+        } as CSSProperties
+      }
+      aria-hidden={!show}
+    >
       {show && <Matrix config={config} />}
     </div>
   );

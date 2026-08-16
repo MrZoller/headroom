@@ -100,6 +100,15 @@ test.describe('with JavaScript disabled', () => {
     await expect(capacity).toContainText(/[0-9.]+ [GTM]iB/);
     await isReallyPainted(capacity);
     await expect(page.getByRole('grid')).toHaveCount(0);
+
+    // This is the pre-hydration box: it must already be large enough for the client-only grid,
+    // rather than learning its height after mounting and shifting the architecture aside below.
+    const reservation = page.locator('[data-matrix-reservation]');
+    const box = await reservation.boundingBox();
+    expect(box, 'the Matrix reservation has no layout box').not.toBeNull();
+    expect(box!.height, 'the Matrix reservation is shorter than the desktop grid').toBeGreaterThan(
+      1767
+    );
   });
 
   test('a two-level page resolves its assets and paints the same way', async ({ page }) => {
