@@ -6,6 +6,6 @@
   "current_task": "T4",
   "branch": "factory/t4-pinned-placement-floor",
   "pr": 221,
-  "hold": true,
-  "updated": "2026-08-16T00:48:55Z"
+  "hold": false,
+  "updated": "2026-08-16T03:42:09Z"
 }
