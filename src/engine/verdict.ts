@@ -1038,9 +1038,9 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
             : `${fmt(batchAggregate())} tok/s end to end${batchWorkers()}, prompts included, makes even an overnight run small.`,
     }),
     judge('serving', {
-      unpriced:
-        servingGood.measured.placement.unpricedHostKv ||
-        servingTight.measured.placement.unpricedHostKv,
+      // A four-user host-KV fallback cannot be graded as good, but it must not discard the
+      // independent two-user tight tier when that tier remains measurable.
+      unpriced: servingTight.measured.placement.unpricedHostKv,
       // Every concurrent user brings their own cache, which is what actually runs out.
       //
       // And every concurrent user brings their own prompt, which is what they wait on. Capacity

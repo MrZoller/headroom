@@ -559,6 +559,25 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
     expect(serving.reason).not.toMatch(/spilling to host RAM/);
   });
 
+  it('keeps a measurable two-user serving tier when four users require host-side KV', () => {
+    const unpricedAtFour: Placement = { ...RESIDENT, unpricedHostKv: true };
+    const serving = new Map(
+      judgeWorkloads({
+        selectedPlacement: RESIDENT,
+        usage: { contextTokens: 2048, concurrency: 1, promptTokens: 2048, kvPrecision: 'fp16' },
+        maxContextTokens: 200_000,
+        runnableContextTokens: 200_000,
+        evaluateAt: (_prompt, _context, _prefix, concurrency) => ({
+          ...STUB_SPEED,
+          placement: concurrency >= WORKLOAD_BARS.serving.good.users ? unpricedAtFour : RESIDENT,
+        }),
+      }).map((v) => [v.workload.id, v])
+    ).get('serving')!;
+
+    expect(serving.fitness).toBe('tight');
+    expect(serving.reason).toMatch(/host RAM/i);
+  });
+
   it('quotes no four-user figure at all when four users cannot run', () => {
     /*
      * The class the two gates above were a subset of (found in review, third round).
