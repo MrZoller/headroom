@@ -23,7 +23,7 @@ those gates literally.)
 - [x] T3 (standard) — Verify and harden automated catalog refresh publication (Fixes #193)
   - acceptance: with repository workflow defaults still least-privilege, a manual or scheduled refresh completes through creation or update of a non-destructive PR based on current `main`; obsolete `catalog/refresh` state cannot invite a destructive manual merge; the successful run and resulting PR are recorded
   - deps: T2
-- [R] T4 (major) — Resolve pinned-tensor placement floor semantics (Fixes #210)
+- [x] T4 (major) — Resolve pinned-tensor placement floor semantics (Fixes #210)
   - acceptance: `src/engine/placement.ts`, verdict copy, and launch guidance implement and document one evidence-backed treatment for a seeded device whose pinned tensors, KV, and activations exceed its ceiling; the UI neither falsely claims an OOM nor silently prices an unmodeled host-KV placement; tests cover the measured seeded-bin overflow and ordinary offload cases
   - deps: none
 - [ ] T5 (major) — Reject calibration runs from unpriced layer placements (Fixes #208)
