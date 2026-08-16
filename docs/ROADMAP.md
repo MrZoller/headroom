@@ -449,19 +449,22 @@ commands went through it. The assertion now derives the expected card from `shar
 against `weightBreakdown().outputBytes`: the bin the engine actually charged the table to. A test
 whose expectation is spelled the way the code is spelled tests nothing, however wide the sweep.
 
-**Two things #204 measured and deliberately did not change, and #182 has since moved one of them
-without touching it.** The `max === min` gate that suppresses `-ts` on an even split is wrong the
-same way — `L + 1` slots over `n` cards cannot divide evenly when `n` divides `L`, so llama.cpp's
-default hands card 0 an extra layer — and the default reproduces the packing on **0 of the 89,615**
-configurations that reach it. Widening the gate was deferred as a larger rewrite that interacts with
-#182's packing, and the interaction turned out to run the other way: **seeding the output projection
-onto the last bin makes the packing genuinely uneven, so the existing gate now lets the flag
-through.** `-ts` appears on **29,311 configurations that carried none before** and reads differently
-on 14,665 of the 38,765 that did — 67,678 in all, against 38,765. The gate is unchanged and the
-emission is still exact: all 67,678 were put through the same port of `llama-model.cpp:1285-1343`,
-and every one lands the packed counts on the packed cards with the output tensor on the intended
-one. What is left behind the gate is the shrinking remainder where the split really is even, which
-is now mostly long-context rigs where a layer's cache outweighs the table.
+**The even-split suppression is fixed too** ([#207](https://github.com/MrZoller/headroom/issues/207)).
+The original 89,615 figure predated #182's seeded packing and no longer described the population, so
+it was re-measured on 16 August 2026 over the same 361,200 configurations: 235,819 reach a runnable
+command, and **59,590** still reached the equal-resident-count gate — 34,621 fully resident and
+24,969 spilling. The argument survives the smaller population unchanged: `L + 1` slots over `n`
+cards cannot divide evenly when `n` divides `L`, so an even repeating-layer split cannot be left to
+the default without moving a layer away from the card the engine sized.
+
+The gate is gone. Every expressible multi-device window now emits `-ts`, and the existing last-share
+rule gives the output slot to the bin whose byte accounting includes the output projection. Current
+llama.cpp still derives an omitted split from **current free memory**, normalises it over
+`min(ngl, L + 1)`, and selects with strict `upper_bound`; rechecked in
+`src/llama-model.cpp:1317-1359` at commit `ad1de39e` (15 August 2026). A focused 8,8,8,8 test and the
+catalog sweep both run the emitted flags through that upstream rule, compare delivered layers with
+the engine assignment, and derive the expected output card from `weightBytes` and `outputBytes`
+rather than restating the emitter's last-share rule.
 
 The second is untouched. Where `residentLayers` floors to **zero** on a GPU rig the emission stays
 `-ngl 0`: the `+1` rule would put the whole output table on a card that had no room for a layer,
