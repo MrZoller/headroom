@@ -16,6 +16,7 @@ import {
 } from './fixtures';
 import { LLAMA_CPP, MLX } from './fixtures';
 import { MEASURE_DIRECTION } from './measure';
+import { GIB } from './types';
 
 const USAGE = {
   contextTokens: 8192,
@@ -76,6 +77,21 @@ describe('the model-by-device grid', () => {
     for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {
       expect(measureValue(cell, measure)).toBeUndefined();
     }
+  });
+
+  it('refuses a host-KV fallback whose pinned tensors still exceed the ceiling', () => {
+    const [[cell]] = computeMatrix({
+      models: [LLAMA_32_3B],
+      devices: [{ ...RTX_5080, capacityBytes: GIB, allocatableBytes: GIB / 2 }],
+      quantFor: () => getQuant('bf16'),
+      runtime: LLAMA_CPP,
+      usage: USAGE,
+      deviceCount: 1,
+    });
+
+    expect(cell.runs).toBe(false);
+    expect(cell.unpricedHostKv).toBe(true);
+    expect(cell.blockedBy).toMatch(/does not fit/i);
   });
 
   /**

@@ -135,16 +135,24 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
 
         return {
           ...base,
-          // Host-KV fallback is runnable, but its timing is deliberately withheld below.
-          runs: placement.unsupported === undefined && placement.unpricedHostKv,
+          // Host-KV fallback is runnable only when its post-fallback floor fits; its timing is
+          // deliberately withheld below.
+          runs:
+            placement.unsupported === undefined &&
+            !placement.impossible &&
+            placement.unpricedHostKv,
           evaluated,
           blockedBy:
             placement.unsupported ??
-            (placement.unpricedHostKv
-              ? 'Requires host-side KV that Headroom cannot model'
-              : raiseable
+            (placement.impossible
+              ? raiseable
                 ? 'Past the default allocation'
-                : 'Does not fit'),
+                : 'Does not fit'
+              : placement.unpricedHostKv
+                ? 'Requires host-side KV that Headroom cannot model'
+                : raiseable
+                  ? 'Past the default allocation'
+                  : 'Does not fit'),
           ...(placement.unpricedHostKv ? { unpricedHostKv: true } : {}),
           ...(raiseable ? { raiseCeilingWouldHelp: true } : {}),
           utilization: placement.utilization,
