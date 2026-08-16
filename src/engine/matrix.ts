@@ -156,7 +156,9 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
           ...(placement.unpricedHostKv ? { unpricedHostKv: true } : {}),
           ...(raiseable ? { raiseCeilingWouldHelp: true } : {}),
           utilization: placement.utilization,
-          offloadFraction: 0,
+          // This state still sheds repeating layers; retain that fact for the Matrix summary even
+          // though its performance readings stay off the scale below.
+          offloadFraction: placement.offloadFraction,
           tokensPerSec: 0,
           ttftSeconds: 0,
         };

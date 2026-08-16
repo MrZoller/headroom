@@ -74,6 +74,7 @@ describe('the model-by-device grid', () => {
     expect(cell.runs).toBe(true);
     expect(cell.unpricedHostKv).toBe(true);
     expect(cell.blockedBy).toMatch(/host-side KV/i);
+    expect(cell.offloadFraction).toBeGreaterThan(0);
     for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {
       expect(measureValue(cell, measure)).toBeUndefined();
     }

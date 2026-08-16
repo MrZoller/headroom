@@ -10,7 +10,7 @@ import { comparisonGrid, getDevice, getModel } from '@/data/catalog';
 import { getQuant } from '@/data/quants';
 import { getRuntime, kvSubstitutionFor, runtimeDrives, substitutionFor } from '@/data/runtimes';
 import { FALLBACK_QUANT_ID, quantApplies } from '@/lib/quantChoice';
-import { magnitudeFill, magnitudeRamp } from '@/design/tokens';
+import { colors, magnitudeFill, magnitudeRamp } from '@/design/tokens';
 import { MEASURE_DIRECTION } from '@/engine/measure';
 import { DEVICE_CLASS_LABELS, MEASURES, kvLabel } from '@/lib/stops';
 import { HOST_RAM_UNCHECKED } from '@/lib/verdicts';
@@ -329,6 +329,7 @@ export function Matrix({ config }: { config: Config }) {
       // teaches people to skip the caveat that matters.
       anyEvaluated: flat.some((c) => c.evaluated),
       anyRaiseable: flat.some((c) => c.raiseCeilingWouldHelp),
+      anyUnpricedHostKv: flat.some((c) => c.runs && c.unpricedHostKv),
       // Whether "combinations run" is counting any cell that only runs by spilling — the
       // condition for the qualifier HOST_RAM_UNCHECKED exists to enforce (#127).
       anySpilled: flat.some((c) => c.runs && c.offloadFraction > 0),
@@ -875,6 +876,8 @@ export function Matrix({ config }: { config: Config }) {
                 same conditional, same constant (#127). */}
             {summary.anySpilled &&
               ` Some of those run only by spilling weights to host RAM. ${HOST_RAM_UNCHECKED}`}
+            {summary.anyUnpricedHostKv &&
+              ' Some run with shed layers and KV cache in host RAM; their speed is not modelled.'}
             {/* The same fact the struck headings and the legend carry, in the channel that has
                 neither. This caption is the grid's only summary for a reader who cannot see it, and
                 at #72's own URL it read "232 of 408 combinations run" with no further explanation —
@@ -1618,6 +1621,16 @@ export function Matrix({ config }: { config: Config }) {
             some combinations run only by spilling weights to host RAM. {HOST_RAM_UNCHECKED}
           </span>
         )}
+        {summary.anyUnpricedHostKv && (
+          <span className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="inline-block h-3 w-3 rounded-sm"
+              style={{ background: colors.warning }}
+            />
+            runs with shed layers and KV cache in host RAM; speed is not modelled
+          </span>
+        )}
         {/* A default allocation and a hardware limit are not the same answer, and this grid is
             read as a shortlist. DeepSeek V3 at Q5_K_M is past the 512 GB Mac Studio's 384 GiB
             default and inside the 512 it can be tuned to — struck off the list over a checkbox,
@@ -1782,6 +1795,9 @@ function fill(
   measure: MatrixMeasure,
   domain: { min: number; max: number } | undefined
 ): string {
+  // An unpriced host-KV placement is runnable but outside every numeric ramp. It needs a distinct
+  // categorical mark rather than the transparent hole reserved for cells that do not run.
+  if (cell.runs && cell.unpricedHostKv) return colors.warning;
   const value = measureValue(cell, measure);
   // Absence is not a low score. A pair that cannot run gets the empty fill, so the ramp is only
   // ever read across things that actually ran.
