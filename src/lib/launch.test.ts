@@ -1332,7 +1332,9 @@ describe('a placement the engine refused produces no commands at all', () => {
 
     const serve = commands(over)['llama-server'].serve;
     if (!serve.ok) throw new Error('unreachable');
-    expect(serve.notes.join(' ')).toMatch(/shed layers and their KV cache in host RAM/i);
+    expect(serve.text).toContain('-ngl 0');
+    expect(serve.notes.join(' ')).toMatch(/runs entirely from host RAM/i);
+    expect(serve.notes.join(' ')).not.toMatch(/pinned output tensor still fits on its card/i);
   });
 
   it('emits nothing for a runtime with no launcher registered', () => {

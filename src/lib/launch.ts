@@ -459,6 +459,14 @@ function residencyNote(input: LaunchInput): readonly string[] {
 function hostKvFallbackNote(input: LaunchInput): readonly string[] {
   if (!input.placement.unpricedHostKv) return [];
 
+  if (gpuLayers(input) === 0) {
+    return [
+      `This command uses -ngl 0, so it runs entirely from host RAM rather than keeping the pinned ` +
+        `output tensor on a GPU. Headroom does not check that host capacity or model this execution, ` +
+        `so the speed figures above do not describe this command.`,
+    ];
+  }
+
   return [
     `This command runs by leaving the shed layers and their KV cache in host RAM so the pinned ` +
       `output tensor still fits on its card. Headroom does not check that host capacity or model ` +
