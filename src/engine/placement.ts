@@ -972,6 +972,9 @@ export function planPlacement(
     if (!unpricedHostKv) return Math.max(max, bin.kvBytes + activations);
 
     const residentLayers = residentLayersOf(bin);
+    // `-ngl 0` is CPU-only, including its activations and fixed tensors. Host capacity is explicitly
+    // outside this fallback's model, so it contributes no device-side feasibility floor.
+    if (residentLayers === 0) return max;
     // The layers llama.cpp keeps are the tail of its resident window.  A layer count is not a
     // cache divisor for hybrid models: a bin can contain both full-attention and sliding-window
     // layers, whose KV costs differ by orders of magnitude.  Price the actual assigned layers

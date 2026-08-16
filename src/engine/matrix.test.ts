@@ -80,7 +80,7 @@ describe('the model-by-device grid', () => {
     }
   });
 
-  it('refuses a host-KV fallback whose pinned tensors still exceed the ceiling', () => {
+  it('keeps a CPU-only host-KV fallback runnable when pinned tensors exceed the GPU ceiling', () => {
     const [[cell]] = computeMatrix({
       models: [LLAMA_32_3B],
       devices: [{ ...RTX_5080, capacityBytes: GIB, allocatableBytes: GIB / 2 }],
@@ -90,9 +90,9 @@ describe('the model-by-device grid', () => {
       deviceCount: 1,
     });
 
-    expect(cell.runs).toBe(false);
+    expect(cell.runs).toBe(true);
     expect(cell.unpricedHostKv).toBe(true);
-    expect(cell.blockedBy).toMatch(/does not fit/i);
+    expect(cell.blockedBy).toMatch(/host-side KV/i);
   });
 
   /**

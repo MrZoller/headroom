@@ -773,6 +773,13 @@ function placementRefusal(input: LaunchInput): string | undefined {
      * carried on `Placement` precisely so a sentence and its predicate read one value.
      */
     const machine = input.rig.device.name;
+    if (placement.unpricedHostKv) {
+      return (
+        `This configuration does not run on ${machine}: its pinned tensors, resident cache, and ` +
+        `overhead are over the ceiling. Lowering context or concurrency helps only if cache is the ` +
+        `binding part; otherwise choose a narrower format, a smaller model, or more VRAM.`
+      );
+    }
     return placement.floorBytesPerDevice > placement.allocatableBytesPerDevice
       ? `This configuration does not run on ${machine}: the cache and activations alone are over ` +
           `the ceiling, so no flag rescues it. Lower the context or the concurrency and the ` +

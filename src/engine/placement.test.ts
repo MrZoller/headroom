@@ -1496,6 +1496,22 @@ describe('the input embedding comes off the cards on the runtime’s claim, not 
       expect(p.assignment.residentLayers).toBeGreaterThan(0);
     });
 
+    it('does not retain a pinned GPU floor for the CPU-only -ngl 0 fallback', () => {
+      const device = { ...RTX_5080, allocatableBytes: 100 * 1024 ** 2 };
+      const p = planPlacement(
+        LLAMA_32_3B,
+        quant,
+        usage(128 * 1024, 4),
+        { device, count: 1 },
+        runtime
+      );
+
+      expect(p.unpricedHostKv).toBe(true);
+      expect(p.assignment.residentLayers).toBe(0);
+      expect(p.floorBytesPerDevice).toBe(0);
+      expect(p.impossible).toBe(false);
+    });
+
     it('does not apply llama.cpp layer fallback to tensor-parallel vLLM', () => {
       const p = planPlacement(
         DEEPSEEK_V3,
