@@ -781,8 +781,7 @@ function describeMismatch(
   if (measurement.gpuLayers !== undefined && prediction.gpuLayers !== undefined) {
     const allResident = prediction.gpuLayers >= prediction.modelLayers;
     const pricedRepeatingLayers = Math.min(prediction.gpuLayers, prediction.modelLayers);
-    const expectedNgl =
-      pricedRepeatingLayers > 0 ? pricedRepeatingLayers + 1 : 0;
+    const expectedNgl = pricedRepeatingLayers > 0 ? pricedRepeatingLayers + 1 : 0;
     const agrees = allResident
       ? measurement.gpuLayers >= prediction.modelLayers + 1
       : measurement.gpuLayers === expectedNgl;

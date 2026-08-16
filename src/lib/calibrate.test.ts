@@ -253,8 +253,9 @@ describe('a measurement of a different job is not evidence about the model', () 
     const mismatch = compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0].mismatch;
     expect(mismatch).toMatch(/-ngl 12, which loads 11 of 32 repeating layers/);
     expect(mismatch).toMatch(/prices 32 and emits -ngl 33/);
-    expect(hasSubmittablePair([compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0]]))
-      .toBe(false);
+    expect(
+      hasSubmittablePair([compare(parseLlamaBench(spilled), prediction({ gpuLayers: 32 }))[0]])
+    ).toBe(false);
 
     // And says nothing when the prediction makes no claim.
     expect(
@@ -342,12 +343,15 @@ describe('a measurement of a different job is not evidence about the model', () 
     const onGpu = JSON.stringify([
       { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: 32, avg_ts: 7285.68 },
     ]);
-    const mismatch = compare(parseLlamaBench(onGpu), prediction({ gpuLayers: 0, modelLayers: 32 }))[0]
-      .mismatch;
+    const mismatch = compare(
+      parseLlamaBench(onGpu),
+      prediction({ gpuLayers: 0, modelLayers: 32 })
+    )[0].mismatch;
     expect(mismatch).toMatch(/-ngl 32, which loads 31 of 32 repeating layers/);
     expect(mismatch).toMatch(/prices 0 and emits -ngl 0/);
-    expect(hasSubmittablePair([compare(parseLlamaBench(onGpu), prediction({ gpuLayers: 0 }))[0]]))
-      .toBe(false);
+    expect(
+      hasSubmittablePair([compare(parseLlamaBench(onGpu), prediction({ gpuLayers: 0 }))[0]])
+    ).toBe(false);
 
     /**
      * **And `-ngl 1` is not a second spelling of zero**, which is where the #204 widening above had
@@ -986,9 +990,7 @@ describe('the submission carries the scenario, not a description of it', () => {
   it('keeps unpriced full and partial placements out of the submission corpus', () => {
     const measured = (ngl: number, rate: number) =>
       parseLlamaBench(
-        JSON.stringify([
-          { n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: rate },
-        ])
+        JSON.stringify([{ n_prompt: 2048, n_gen: 0, n_depth: 0, n_gpu_layers: ngl, avg_ts: rate }])
       );
     const comparisons = [
       ...compare(measured(32, 111), prediction({ gpuLayers: 32 })),
