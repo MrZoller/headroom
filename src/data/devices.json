@@ -678,10 +678,8 @@
       "tflops": { "fp16": 54 },
       "tdpWatts": 270,
       "price": {
-        "kind": "launch",
-        "usd": 9499,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://www.apple.com/mac-studio/specs/"
       },
@@ -703,10 +701,8 @@
       "tflops": { "fp16": 40.5 },
       "tdpWatts": 270,
       "price": {
-        "kind": "launch",
-        "usd": 5599,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://www.apple.com/mac-studio/specs/"
       },
@@ -728,10 +724,8 @@
       "tflops": { "fp16": 40.5 },
       "tdpWatts": 270,
       "price": {
-        "kind": "launch",
-        "usd": 3999,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://www.apple.com/mac-studio/specs/"
       },
@@ -777,10 +771,8 @@
       "tflops": { "fp16": 34 },
       "tdpWatts": 140,
       "price": {
-        "kind": "launch",
-        "usd": 4699,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://support.apple.com/en-us/121553"
       },
@@ -802,10 +794,8 @@
       "tflops": { "fp16": 27 },
       "tdpWatts": 160,
       "price": {
-        "kind": "launch",
-        "usd": 1999,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://www.apple.com/mac-studio/specs/"
       },
@@ -851,10 +841,8 @@
       "tflops": { "fp16": 17 },
       "tdpWatts": 65,
       "price": {
-        "kind": "launch",
-        "usd": 1999,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://support.apple.com/en-us/121555"
       },
@@ -874,10 +862,8 @@
       "tflops": { "fp16": 13.6 },
       "tdpWatts": 65,
       "price": {
-        "kind": "launch",
-        "usd": 1399,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://support.apple.com/en-us/121555"
       },
@@ -898,10 +884,8 @@
       "tflops": { "fp16": 6.8 },
       "tdpWatts": 30,
       "price": {
-        "kind": "launch",
-        "usd": 999,
-        "unit": "machine",
-        "availability": "current",
+        "kind": "unavailable",
+        "reason": "incomplete-system",
         "checkedAt": "2026-08-16",
         "source": "https://support.apple.com/en-us/122209"
       },

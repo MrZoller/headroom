@@ -565,6 +565,26 @@ describe('the catalog covers the hardware the audience owns', () => {
     expect(laptop.bandwidthBytesPerSec).toBe(546 * 1e9);
   });
 
+  it('does not attach a machine price to Apple specification pages covering many configurations', () => {
+    const ambiguousPriceSources = [
+      'mac-studio-m3-ultra-512',
+      'mac-studio-m3-ultra-256',
+      'mac-studio-m3-ultra-96',
+      'macbook-pro-m4-max-128',
+      'mac-studio-m4-max-36',
+      'mac-mini-m4-pro-64',
+      'mac-mini-m4-pro-24',
+      'macbook-air-m4-16',
+    ];
+
+    for (const id of ambiguousPriceSources) {
+      expect(getDevice(id).price).toMatchObject({
+        kind: 'unavailable',
+        reason: 'incomplete-system',
+      });
+    }
+  });
+
   /**
    * **An Apple row's compute must be reproducible from a GPU core count the row itself states.**
    *
