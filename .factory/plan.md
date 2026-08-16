@@ -26,7 +26,7 @@ those gates literally.)
 - [x] T4 (major) — Resolve pinned-tensor placement floor semantics (Fixes #210)
   - acceptance: `src/engine/placement.ts`, verdict copy, and launch guidance implement and document one evidence-backed treatment for a seeded device whose pinned tensors, KV, and activations exceed its ceiling; the UI neither falsely claims an OOM nor silently prices an unmodeled host-KV placement; tests cover the measured seeded-bin overflow and ordinary offload cases
   - deps: none
-- [R] T5 (major) — Reject calibration runs from unpriced layer placements (Fixes #208)
+- [x] T5 (major) — Reject calibration runs from unpriced layer placements (Fixes #208)
   - acceptance: `describeMismatch` accepts only the explicitly documented llama.cpp placement spellings, including a correct zero-GPU case and any justified legacy tolerance; fully resident and partially resident mismatches cannot enter the calibration submission corpus unnoticed; rejection copy distinguishes `-ngl` slot values from repeating-layer counts and focused tests cover both arms
   - deps: none
 - [ ] T6 (standard) — Emit tensor splits for reproducibly even placements (Fixes #207)
