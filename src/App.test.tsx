@@ -239,6 +239,10 @@ describe('the Bench does not overclaim', () => {
     const verdicts = screen.getByRole('region', { name: 'Verdicts' });
     expect(within(verdicts).getAllByText('Will not run')).toHaveLength(1);
     expect(within(verdicts).queryByText(/tok\/s per user/i)).not.toBeInTheDocument();
+
+    const budget = screen.getByRole('region', { name: /memory budget/i });
+    expect(budget).toHaveTextContent(/cannot express the host-KV layer split/i);
+    expect(budget).not.toHaveTextContent(/post-fallback device floor needs/i);
   });
 
   it('explains a full card as a full card, not as a Mac', async () => {
