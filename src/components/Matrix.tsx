@@ -1943,6 +1943,10 @@ function tooltip(
     }
     return `${model} on ${rig}: ${reason}${stop}`;
   }
+  if (cell.unpricedHostKv) {
+    const reason = cell.blockedBy ?? 'Requires host-side KV that Headroom cannot model';
+    return `${model} on ${rig}: ${reason}.`;
+  }
 
   const detail =
     measure === 'fit'

@@ -166,7 +166,7 @@ interface VerdictRig {
  * assertion in this file. That guard was written for the `unmeasured` arm and outlives it (#96):
  * `Record<Fitness, …>` makes the coverage a compile-time claim and this keeps the runtime one.
  */
-const RANK: Record<Fitness, number> = { good: 2, tight: 1, fail: 0 };
+const RANK: Record<Fitness, number> = { good: 2, tight: 1, fail: 0, unmeasured: -1 };
 const rankOf = (fitness: Fitness) => {
   const rank = RANK[fitness];
   if (rank === undefined) throw new Error(`no rank for the grade "${fitness}"`);
@@ -392,7 +392,7 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
       contextTokens: 131072,
     });
 
-    for (const verdict of crowded.values()) expect(verdict.fitness).toBe('fail');
+    for (const verdict of crowded.values()) expect(verdict.fitness).toBe('unmeasured');
     expect(new Set([...crowded.values()].map((v) => v.reason)).size).toBe(1);
   });
 
@@ -418,7 +418,7 @@ describe('serving is graded at its own concurrency, not the slider’s', () => {
       const verdicts = judge(LLAMA_31_8B, 'q4_k_m', { device: RTX_5090, concurrency });
       expect(verdicts.size).toBe(7);
       for (const verdict of verdicts.values()) {
-        expect(['good', 'tight', 'fail']).toContain(verdict.fitness);
+        expect(['good', 'tight', 'fail', 'unmeasured']).toContain(verdict.fitness);
         expect(verdict.reason.length).toBeGreaterThan(0);
       }
     }
@@ -2067,7 +2067,7 @@ describe('only the agent grades its prompt against a resident session', () => {
       });
 
       for (const verdict of verdicts.values()) {
-        expect(verdict.fitness).toBe('fail');
+        expect(verdict.fitness).toBe('unmeasured');
         expect(verdict.reason).toMatch(/runs only by moving shed layers and their KV cache/i);
         expect(verdict.reason).toMatch(/cannot grade performance/i);
         expect(verdict.reason).not.toMatch(/does not fit|cannot spill|does not run|\bOOM\b/i);

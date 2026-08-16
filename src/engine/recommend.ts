@@ -48,7 +48,7 @@ import {
  */
 
 /** The order the tiers rank in. Not a score — a total order over three named states. */
-const TIER_RANK: Record<Fitness, number> = { good: 0, tight: 1, fail: 2 };
+const TIER_RANK: Record<Fitness, number> = { good: 0, tight: 1, fail: 2, unmeasured: 3 };
 
 /**
  * How the shortlist is ordered, in words, for the surface to print.
@@ -447,7 +447,7 @@ function grade(
   });
 
   const verdict = verdicts.find((v) => v.workload.id === workload.id);
-  if (verdict === undefined) return undefined;
+  if (verdict === undefined || verdict.fitness === 'unmeasured') return undefined;
 
   return {
     model,

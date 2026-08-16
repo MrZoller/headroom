@@ -70,7 +70,7 @@ describe('the model-by-device grid', () => {
       deviceCount: 4,
     });
 
-    expect(cell.runs).toBe(false);
+    expect(cell.runs).toBe(true);
     expect(cell.unpricedHostKv).toBe(true);
     expect(cell.blockedBy).toMatch(/host-side KV/i);
     for (const measure of ['fit', 'decode', 'ttft'] as MatrixMeasure[]) {

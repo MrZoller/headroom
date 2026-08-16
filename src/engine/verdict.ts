@@ -20,7 +20,7 @@ import type { Placement } from './placement';
  */
 
 /**
- * Three grades, and the reason there is no fourth.
+ * Four grades, including the explicit case where the configuration can run but cannot be measured.
  *
  * `good`, `tight` and `fail` are judgements — this setup does the thing well, marginally, or not at
  * all — and they are the vocabulary every surface renders with a reserved status colour.
@@ -42,7 +42,7 @@ import type { Placement } from './placement';
  * way. The invariant worth keeping from all of it: **a row is ungraded only when nothing about it
  * has been measured**, and there is now no such row.
  */
-export type Fitness = 'good' | 'tight' | 'fail';
+export type Fitness = 'good' | 'tight' | 'fail' | 'unmeasured';
 
 /**
  * Room a workload needs for its answer, on top of its prompt.
@@ -502,7 +502,7 @@ export function judgeWorkloads(inputs: VerdictInputs): WorkloadVerdict[] {
     const reason =
       'This configuration runs only by moving shed layers and their KV cache to host RAM. ' +
       'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.';
-    return WORKLOADS.map((w) => ({ workload: w, fitness: 'fail' as const, reason }));
+    return WORKLOADS.map((w) => ({ workload: w, fitness: 'unmeasured' as const, reason }));
   }
 
   /**
@@ -1222,7 +1222,7 @@ function judge(
 ): WorkloadVerdict {
   return {
     workload: workload(id),
-    fitness: unpriced ? 'fail' : pass ? 'good' : tight ? 'tight' : 'fail',
+    fitness: unpriced ? 'unmeasured' : pass ? 'good' : tight ? 'tight' : 'fail',
     reason: unpriced
       ? 'This scenario runs only by moving shed layers and their KV cache to host RAM. ' +
         'Headroom does not check that RAM or model this mixed CPU/GPU placement, so it cannot grade performance.'

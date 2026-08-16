@@ -135,7 +135,8 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
 
         return {
           ...base,
-          runs: false,
+          // Host-KV fallback is runnable, but its timing is deliberately withheld below.
+          runs: placement.unsupported === undefined && placement.unpricedHostKv,
           evaluated,
           blockedBy:
             placement.unsupported ??
@@ -182,7 +183,7 @@ export function computeMatrix(request: MatrixRequest): MatrixCell[][] {
  * some theoretical maximum tells you nothing about which to buy.
  */
 export function measureValue(cell: MatrixCell, measure: MatrixMeasure): number | undefined {
-  if (!cell.runs) return undefined;
+  if (!cell.runs || cell.unpricedHostKv) return undefined;
   // An offloaded fit scores below any resident one — a categorical answer rather than a degree,
   // since the weights are crossing the bus whatever the headroom arithmetic says.
   if (measure === 'fit' && cell.offloadFraction > 0) return 0;
