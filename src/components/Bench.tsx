@@ -15,7 +15,7 @@ import { Calibrate } from './Calibrate';
 import { Recommend } from './Recommend';
 import { Detect } from './Detect';
 import { Envelope } from './Envelope';
-import { DETAIL_ANCHOR_ID, Matrix } from './Matrix';
+import { DeferredMatrix, DETAIL_ANCHOR_ID } from './Matrix';
 import { Segmented, Select, StopSlider } from './Controls';
 import { compact, params, percent, sentences, tokens } from '@/lib/format';
 import {
@@ -678,7 +678,7 @@ export function Bench() {
           telling them something. */}
       <Calibrate evaluation={evaluation} />
       <Envelope config={config} />
-      <Matrix config={config} />
+      <DeferredMatrix config={config} />
 
       {/*
        * The teaching moment. Total versus active parameters is the most misunderstood thing in

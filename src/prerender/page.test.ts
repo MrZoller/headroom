@@ -98,6 +98,28 @@ describe('a built page', () => {
     );
   });
 
+  it('keeps selected-scenario figures in the raw page while deferring the Matrix', () => {
+    // This is a named device, not a position in a generated route list: its page is stable even when
+    // catalog popularity and therefore the pair-page shortlist changes.
+    const route = deviceRoute('rtx-5090');
+    const raw = renderRoute(route.config);
+    const html = build(route);
+
+    for (const output of [raw, html]) {
+      // Capacity/fit and the memory breakdown are text in the selected scenario, not data that the
+      // deferred comparison grid would need to reconstruct.
+      expect(output).toMatch(/[0-9.]+ [GTM]iB of [0-9.]+ [GTM]iB allocatable used/);
+      expect(output).toMatch(/Weights [0-9.]+ [GTM]iB, KV cache [0-9.]+ [GTM]iB/);
+      expect(output).toContain('>Spilling to RAM<');
+      expect(output).toMatch(/[0-9.]+ tok\/s prompt processing/);
+      expect(output).toMatch(/>[0-9.]+<span[^>]*>tok\/s/);
+
+      // Neither the named Matrix section nor its interactive grid belongs in a server response.
+      expect(output).not.toContain('Every model on every machine');
+      expect(output).not.toContain('role="grid"');
+    }
+  });
+
   /**
    * The other half of the same claim: that the figures belong to *this* page.
    *

@@ -87,13 +87,19 @@ test.describe('with JavaScript disabled', () => {
       /[0-9.]+ [GTM]iB of [0-9.]+ [GTM]iB allocatable used/
     );
     expect(served).toMatch(/Weights [0-9.]+ [GTM]iB, KV cache [0-9.]+ [GTM]iB/);
+    expect(served).toContain('>Spilling to RAM<');
     expect(served).toContain('data-prerendered');
+    expect(served).toMatch(/[0-9.]+ tok\/s prompt processing/);
+    expect(served).toMatch(/tok\/s per user/);
+    expect(served).not.toContain('Every model on every machine');
+    expect(served).not.toContain('role="grid"');
 
     await page.goto(route);
 
     const capacity = tile(page, 'Capacity');
     await expect(capacity).toContainText(/[0-9.]+ [GTM]iB/);
     await isReallyPainted(capacity);
+    await expect(page.getByRole('grid')).toHaveCount(0);
   });
 
   test('a two-level page resolves its assets and paints the same way', async ({ page }) => {
@@ -120,6 +126,32 @@ test.describe('with JavaScript disabled', () => {
     const decode = tile(page, 'Decode');
     await expect(decode).toContainText(/tok\/s per user|no speed to report/);
     await isReallyPainted(decode);
+  });
+});
+
+test.describe('with JavaScript enabled', () => {
+  test('hydrates selected figures before adding the deferred Matrix without warnings', async ({
+    page,
+  }) => {
+    const route = builtRoute(1);
+    const warnings: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') warnings.push(message.text());
+    });
+    page.on('pageerror', (error) => warnings.push(error.message));
+
+    const served = await (await page.request.get(route)).text();
+    expect(served).toMatch(/[0-9.]+ [GTM]iB of [0-9.]+ [GTM]iB allocatable used/);
+    expect(served).toMatch(/Weights [0-9.]+ [GTM]iB, KV cache [0-9.]+ [GTM]iB/);
+    expect(served).toContain('>Spilling to RAM<');
+    expect(served).toMatch(/[0-9.]+ tok\/s prompt processing/);
+    expect(served).toMatch(/tok\/s per user/);
+    expect(served).not.toContain('Every model on every machine');
+    expect(served).not.toContain('role="grid"');
+
+    await page.goto(route);
+    await expect(page.getByRole('grid')).toHaveCount(1);
+    expect(warnings, 'hydration must not report a warning or recoverable error').toEqual([]);
   });
 });
 
