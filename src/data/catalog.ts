@@ -29,14 +29,36 @@ export interface DeviceRow {
   interconnect?: string;
   hostLinkGBs?: number;
   tdpWatts?: number;
-  msrpUsd?: number;
+  price: DevicePrice;
   releasedAt?: string;
   source: string;
   note?: string;
 }
 
-/** A device plus the curator's note, which the UI shows but the engine has no use for. */
+export type DevicePrice =
+  | {
+      kind: 'launch';
+      /** US launch list price before tax, for one represented card or machine. */
+      usd: number;
+      unit: 'card' | 'machine';
+      /** Whether the exact represented product/configuration was still sold when checked. */
+      availability: 'current' | 'discontinued';
+      checkedAt: string;
+      /** Price evidence, separate from the row's specification source. */
+      source: string;
+    }
+  | {
+      kind: 'unavailable';
+      reason:
+        'quote-only' | 'no-public-price' | 'not-announced' | 'discontinued' | 'incomplete-system';
+      checkedAt: string;
+      /** Evidence for why a defensible public price is unavailable. */
+      source: string;
+    };
+
+/** Catalog-only purchasing metadata. It must never become an engine or ranking input. */
 export interface CatalogDevice extends DeviceSpec {
+  price: DevicePrice;
   note?: string;
 }
 
@@ -157,12 +179,16 @@ export function toDevice(row: DeviceRow): CatalogDevice {
     );
   }
 
+  const validatedClass = narrow(row.class, DEVICE_CLASSES, 'class', row.id);
+  const validatedStatus = narrow(row.status, DEVICE_STATUSES, 'status', row.id);
+  const price = validateDevicePrice(row.price, row.id, validatedStatus);
+
   return {
     id: row.id,
     name: row.name,
     vendor: row.vendor,
-    class: narrow(row.class, DEVICE_CLASSES, 'class', row.id),
-    status: narrow(row.status, DEVICE_STATUSES, 'status', row.id),
+    class: validatedClass,
+    status: validatedStatus,
     capacityBytes: row.capacityGiB * GIB,
     allocatableBytes: row.allocatableGiB * GIB,
     ...(row.allocatableTunable ? { allocatableTunable: true } : {}),
@@ -174,11 +200,69 @@ export function toDevice(row: DeviceRow): CatalogDevice {
     ...(row.interconnect ? { interconnect: row.interconnect } : {}),
     ...(row.hostLinkGBs === undefined ? {} : { hostLinkBytesPerSec: row.hostLinkGBs * 1e9 }),
     ...(row.tdpWatts ? { tdpWatts: row.tdpWatts } : {}),
-    ...(row.msrpUsd ? { msrpUsd: row.msrpUsd } : {}),
+    price,
     ...(row.releasedAt ? { releasedAt: row.releasedAt } : {}),
     source: row.source,
     ...(row.note ? { note: row.note } : {}),
   };
+}
+
+const PRICE_UNITS: Record<Extract<DevicePrice, { kind: 'launch' }>['unit'], true> = {
+  card: true,
+  machine: true,
+};
+const PRICE_AVAILABILITY: Record<Extract<DevicePrice, { kind: 'launch' }>['availability'], true> = {
+  current: true,
+  discontinued: true,
+};
+const PRICE_UNAVAILABLE_REASONS: Record<
+  Extract<DevicePrice, { kind: 'unavailable' }>['reason'],
+  true
+> = {
+  'quote-only': true,
+  'no-public-price': true,
+  'not-announced': true,
+  discontinued: true,
+  'incomplete-system': true,
+};
+
+/** Validate the hand-authored price union before any surface can mistake a typo for missing data. */
+function validateDevicePrice(price: DevicePrice, rowId: string, status: string): DevicePrice {
+  if (!price || (price.kind !== 'launch' && price.kind !== 'unavailable')) {
+    throw new Error(`Catalog device ${rowId || '<unknown>'} has no valid price state.`);
+  }
+  const checkedDate = new Date(`${price.checkedAt}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(price.checkedAt) ||
+    Number.isNaN(checkedDate.valueOf()) ||
+    checkedDate.toISOString().slice(0, 10) !== price.checkedAt
+  ) {
+    throw new Error(`Catalog device ${rowId || '<unknown>'} has invalid price checkedAt.`);
+  }
+  let priceSource: URL;
+  try {
+    priceSource = new URL(price.source);
+  } catch {
+    throw new Error(`Catalog device ${rowId || '<unknown>'} has invalid price source.`);
+  }
+  if (priceSource.protocol !== 'https:') {
+    throw new Error(`Catalog device ${rowId || '<unknown>'} price source must use HTTPS.`);
+  }
+  if (price.kind === 'launch') {
+    if (!Number.isFinite(price.usd) || price.usd <= 0) {
+      throw new Error(`Catalog device ${rowId || '<unknown>'} has invalid launch price.`);
+    }
+    narrow(price.unit, PRICE_UNITS, 'price unit', rowId);
+    narrow(price.availability, PRICE_AVAILABILITY, 'price availability', rowId);
+    if (status !== 'shipping') {
+      throw new Error(
+        `Catalog device ${rowId || '<unknown>'} is ${status}; pre-release prices must be unavailable.`
+      );
+    }
+  } else {
+    narrow(price.reason, PRICE_UNAVAILABLE_REASONS, 'unavailable price reason', rowId);
+  }
+  return price;
 }
 
 export const DEVICES: readonly CatalogDevice[] = (devicesJson.devices as DeviceRow[]).map(toDevice);

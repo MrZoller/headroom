@@ -8,6 +8,7 @@ import {
   type CatalogModel,
 } from '@/data/catalog';
 import { params, tokens } from '@/lib/format';
+import { devicePriceSummary } from '@/lib/device-price';
 import { GB, GIB } from '@/engine/types';
 import type { Config } from '@/store/scenario';
 
@@ -163,7 +164,7 @@ function deviceRoute(device: CatalogDevice): PrerenderRoute {
     title: `${device.name} — what LLM runs on it? · Headroom`,
     description:
       `Which open-weight LLMs run on the ${device.name} — ${deviceFigures(device)} — and how ` +
-      `comfortably. ${COMPUTED}`,
+      `comfortably. ${devicePriceSummary(device)} ${COMPUTED}`,
     indexable: device.status === 'shipping',
   };
 }
@@ -189,7 +190,7 @@ function pairRoute(device: CatalogDevice, model: CatalogModel): PrerenderRoute {
     title: `${model.name} on the ${device.name} — does it fit? · Headroom`,
     description:
       `Does ${model.org} ${model.name}, ${params(model.totalParams)} parameters, run on the ` +
-      `${device.name} — ${deviceFigures(device)}? ${COMPUTED}`,
+      `${device.name} — ${deviceFigures(device)}? ${devicePriceSummary(device)} ${COMPUTED}`,
     indexable: device.status === 'shipping',
   };
 }
