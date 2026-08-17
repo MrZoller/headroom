@@ -62,6 +62,8 @@ those gates literally.)
   - Re-run the catalog generation and verification gate after selecting the current `origin/main` base, so a concurrent main change cannot combine a newly fetched base with a catalog generated and tested against an older checkout. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503366)
   - Revalidate the refresh PR's open state after publication before choosing `gh pr edit`, handling a close/merge race rather than relying on the initial snapshot. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503368)
   - Add typo-rejection regressions for invalid device-price `unit`, `availability`, and `reason` values. [PR #225](https://github.com/MrZoller/headroom/pull/225#discussion_r3791993851)
+  - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
+  - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - pr: 231
 - [!] T14 (trivial) — parked review minors (batch)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
