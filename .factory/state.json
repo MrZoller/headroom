@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": "T10",
-  "branch": "factory/t10-host-kv-bandwidth",
+  "current_task": "T11",
+  "branch": "factory/t11-matrix-mobile-readout",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-17T17:50:28Z"
+  "updated": "2026-08-17T20:18:42Z"
 }
