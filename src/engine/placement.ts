@@ -139,9 +139,9 @@ export interface Placement {
   /**
    * True when fitting the pinned tensors requires llama.cpp to move shed layers' KV to host RAM.
    *
-   * The placement is runnable, but the current roofline prices all KV at device bandwidth and has
-   * no host-RAM capacity input. Consumers must therefore present its performance as unmodelled,
-   * rather than calling it impossible or grading the numeric speed estimates.
+   * The placement is runnable and the decode roofline prices those reads at host-offload bandwidth,
+   * but Headroom still has no host-RAM capacity input. Consumers must therefore present the overall
+   * placement as unmodelled rather than calling it impossible or grading the numeric estimates.
    *
    * This follows llama.cpp's layer placement rather than assuming transparent VRAM fallback:
    * `src/llama-model.cpp` assigns the non-GPU prefix to `cpu_dev`, and
@@ -859,8 +859,8 @@ export function planPlacement(
    *
    * A device can only spill repeating-layer weights. Pinned tensors stay resident whenever any
    * layer does; if shedding every layer still leaves the bin over its ceiling, llama.cpp moves the
-   * shed layers' KV to the host too. That makes the placement runnable but its performance unpriced,
-   * recorded by `unpricedHostKv` rather than pretending part of a pinned tensor spilled.
+   * shed layers' KV to the host too. That makes the placement runnable but its host capacity
+   * unverified, recorded by `unpricedHostKv` rather than pretending part of a pinned tensor spilled.
    *
    * The uniform case is unchanged by construction. Every rank holds the same load, so summing `n`
    * identical overflows over `n` identical shards gives back exactly the per-device ratio this used
