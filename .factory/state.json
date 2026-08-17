@@ -1,11 +1,11 @@
 {
   "project": "Headroom",
-  "phase": "build",
+  "phase": "idle",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": "T9",
-  "branch": "factory/t9-parked-review-minors",
-  "pr": 231,
+  "current_task": null,
+  "branch": null,
+  "pr": null,
   "hold": false,
-  "updated": "2026-08-17T22:56:16Z"
+  "updated": "2026-08-17T23:01:59Z"
 }
