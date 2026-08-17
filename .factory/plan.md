@@ -9,8 +9,9 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T10 (standard) — Speed model prices all KV reads at device bandwidth even when shed layers hold their KV in host RAM (Fixes #222)
   - acceptance: `src/engine/speed.ts` prices KV reads for shed llama.cpp layers at host offload bandwidth while preserving device-bandwidth pricing for resident-layer KV; focused `src/engine/speed.test.ts` coverage proves resident estimates are unchanged and partial-offload decode slows with host-resident KV, context growth, and constrained host bandwidth
   - pr: 227
-- [~] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
+- [R] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
   - acceptance: the 320px Matrix Playwright coverage in `e2e/matrix-readout.spec.ts` selects and asserts the brief readout that is actually visible at that viewport, while continuing to prove the visible ranking text fits its reservation without panel or document horizontal overflow
+  - pr: 229
 - [ ] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
 - [ ] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
