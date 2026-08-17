@@ -1297,6 +1297,29 @@ describe('a hand-typed device row is validated, not trusted', () => {
     );
   });
 
+  it('rejects misspelled price unit, availability and unavailable reason values', () => {
+    expect(() =>
+      toDevice({ ...ROW, price: { ...ROW.price, unit: 'cards' } } as unknown as DeviceRow)
+    ).toThrow(/unsupported price unit/i);
+    expect(() =>
+      toDevice({
+        ...ROW,
+        price: { ...ROW.price, availability: 'available' },
+      } as unknown as DeviceRow)
+    ).toThrow(/unsupported price availability/i);
+    expect(() =>
+      toDevice({
+        ...ROW,
+        price: {
+          kind: 'unavailable',
+          reason: 'quote_only',
+          checkedAt: '2026-08-16',
+          source: 'https://example.com/price',
+        },
+      } as unknown as DeviceRow)
+    ).toThrow(/unsupported unavailable price reason/i);
+  });
+
   it('rejects speculative numeric prices for announced and rumoured hardware', () => {
     for (const status of ['announced', 'rumored'] as const) {
       expect(() => toDevice({ ...ROW, status })).toThrow(/pre-release prices must be unavailable/i);

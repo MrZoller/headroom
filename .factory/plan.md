@@ -14,8 +14,9 @@ Treat the open GitHub issue tracker as the external specification and import one
   - pr: 229
 - [!] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
-- [~] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
+- [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
+  - pr: 230
 
 ## Risks
 
@@ -57,7 +58,7 @@ those gates literally.)
   - acceptance: server output and the client's first render omit the cross-catalog Matrix consistently, then populate it without hydration warnings or geometry regressions; raw route HTML retains the selected device-model fit, memory, prefill, and decode figures; build measurements demonstrate the expected per-page and total output reduction and existing prerender/e2e guards pass
   - deps: none
   - pr: 226
-- [ ] T9 (trivial) — parked review minors (batch) — released 2026-08-17: Chris greenlit working the full backlog; the batch drains with it
+- [~] T9 (trivial) — parked review minors (batch) — released 2026-08-17: Chris greenlit working the full backlog; the batch drains with it
   - Re-run the catalog generation and verification gate after selecting the current `origin/main` base, so a concurrent main change cannot combine a newly fetched base with a catalog generated and tested against an older checkout. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503366)
   - Revalidate the refresh PR's open state after publication before choosing `gh pr edit`, handling a close/merge race rather than relying on the initial snapshot. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503368)
   - Add typo-rejection regressions for invalid device-price `unit`, `availability`, and `reason` values. [PR #225](https://github.com/MrZoller/headroom/pull/225#discussion_r3791993851)

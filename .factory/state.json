@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": "T13",
-  "branch": "factory/t13-publish-catalog-refresh",
+  "current_task": "T9",
+  "branch": "factory/t9-parked-review-minors",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-17T21:33:08Z"
+  "updated": "2026-08-17T22:44:43Z"
 }
