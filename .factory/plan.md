@@ -1,12 +1,28 @@
-# Plan: (none yet)
+# Plan: Headroom issue backlog
 
-No plan has been written. After the spec is approved, run `/plan`. Task
-format and status marks (`[ ]` todo · `[~]` doing · `[R]` review · `[x]`
-done · `[!]` blocked) are defined in the `factory-protocol` skill.
+## Approach
+
+Treat the open GitHub issue tracker as the external specification and import one independently shippable task per uncovered issue. Keep prior factory-completed work and ad-hoc review debt intact, while using `Fixes #N` as the durable issue-to-task link. Ground each new task in the existing engine, component, browser-test, or workflow surface named by the issue; do not infer ordering where the issue does not establish a prerequisite. Future syncs append new work without resizing, rewording, or renumbering these tasks. The rolling parked-review-minors batch remains blocked until its normal drain trigger.
+
+## Tasks
+
+- [~] T10 (standard) — Speed model prices all KV reads at device bandwidth even when shed layers hold their KV in host RAM (Fixes #222)
+  - acceptance: `src/engine/speed.ts` prices KV reads for shed llama.cpp layers at host offload bandwidth while preserving device-bandwidth pricing for resident-layer KV; focused `src/engine/speed.test.ts` coverage proves resident estimates are unchanged and partial-offload decode slows with host-resident KV, context growth, and constrained host bandwidth
+- [ ] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
+  - acceptance: the 320px Matrix Playwright coverage in `e2e/matrix-readout.spec.ts` selects and asserts the brief readout that is actually visible at that viewport, while continuing to prove the visible ranking text fits its reservation without panel or document horizontal overflow
+- [ ] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
+  - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
+- [ ] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
+  - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
+
+## Risks
+
+- T10 changes performance estimates across every partially offloaded llama.cpp placement; if the placement data cannot identify the host-resident KV fraction without changing the engine contract, stop and ask rather than approximate it from unrelated bytes.
+- T11 must test responsive visibility in Playwright rather than treating jsdom text presence as layout evidence.
+- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision.
+- T13 represents an open issue already covered by factory-completed T3; per the reopen rule its new task must assess the issue's current state without reviving or rewriting T3's shipped merge.
 
 ## Ad-hoc
-
-<!-- user-requested tasks land here -->
 
 The T1–T8 backlog imports below were requested directly by Chris
 (2026-08-15) and are ad-hoc pre-approved at their recorded sizes per
@@ -35,10 +51,11 @@ those gates literally.)
 - [x] T7 (major) — Define and surface honest device pricing (Fixes #205)
   - acceptance: device price semantics, date, source, USD/pre-tax labeling, multi-device presentation, and unavailable or stale cases are documented in the catalog contract; selected UI and prerender surfaces expose supported prices without implying a full-system or current street price; announced, rumored, discontinued, datacenter, and CPU-RAM rows have tested honest fallbacks; price-based ranking remains out of scope
   - deps: none
-- [~] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
+- [x] T8 (major) — Remove the Matrix from prerendered route payloads safely (Fixes #195)
   - acceptance: server output and the client's first render omit the cross-catalog Matrix consistently, then populate it without hydration warnings or geometry regressions; raw route HTML retains the selected device-model fit, memory, prefill, and decode figures; build measurements demonstrate the expected per-page and total output reduction and existing prerender/e2e guards pass
   - deps: none
-- [!] T9 (trivial) — parked review minors (batch)
+  - pr: 226
+- [ ] T9 (trivial) — parked review minors (batch) — released 2026-08-17: Chris greenlit working the full backlog; the batch drains with it
   - Re-run the catalog generation and verification gate after selecting the current `origin/main` base, so a concurrent main change cannot combine a newly fetched base with a catalog generated and tested against an older checkout. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503366)
   - Revalidate the refresh PR's open state after publication before choosing `gh pr edit`, handling a close/merge race rather than relying on the initial snapshot. [PR #220](https://github.com/MrZoller/headroom/pull/220#discussion_r3790503368)
   - Add typo-rejection regressions for invalid device-price `unit`, `availability`, and `reason` values. [PR #225](https://github.com/MrZoller/headroom/pull/225#discussion_r3791993851)

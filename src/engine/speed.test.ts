@@ -336,6 +336,45 @@ describe('offload is a cliff', () => {
     expect(placement.offloadFraction).toBeGreaterThan(0.9);
     expect(bus).toBeGreaterThan(result.weightSeconds - bus);
   });
+
+  it('keeps resident KV on device bandwidth regardless of host bandwidth', () => {
+    const quant = getQuant('q4_k_m');
+    const usage = single(32768);
+    const rig = { device: RTX_5090, count: 1 };
+    const placement = planPlacement(LLAMA_31_8B, quant, usage, rig, LLAMA_CPP);
+    expect(placement.offloadFraction).toBe(0);
+
+    const fastHost = estimateDecode(LLAMA_31_8B, quant, usage, rig, LLAMA_CPP, placement, 80e9);
+    const slowHost = estimateDecode(LLAMA_31_8B, quant, usage, rig, LLAMA_CPP, placement, 8e9);
+
+    expect(slowHost.kvSeconds).toBe(fastHost.kvSeconds);
+    expect(slowHost.perUserTokensPerSec).toBe(fastHost.perUserTokensPerSec);
+  });
+
+  it('prices shed layers’ KV at constrained host bandwidth as context grows', () => {
+    const quant = getQuant('bf16');
+    const rig = { device: RTX_5090, count: 1 };
+    const at = (contextTokens: number, hostBandwidth: number) => {
+      const usage = single(contextTokens);
+      const placement = planPlacement(QWEN3_32B, quant, usage, rig, LLAMA_CPP);
+      expect(placement.offloadFraction).toBeGreaterThan(0);
+      expect(placement.assignment.residentLayers).toBeGreaterThan(0);
+      expect(placement.assignment.residentLayers).toBeLessThan(QWEN3_32B.layers);
+      return estimateDecode(QWEN3_32B, quant, usage, rig, LLAMA_CPP, placement, hostBandwidth);
+    };
+
+    const shortFast = at(4096, 80e9);
+    const shortSlow = at(4096, 8e9);
+    const longFast = at(32768, 80e9);
+    const longSlow = at(32768, 8e9);
+
+    expect(shortSlow.kvSeconds).toBeGreaterThan(shortFast.kvSeconds);
+    expect(shortSlow.perUserTokensPerSec).toBeLessThan(shortFast.perUserTokensPerSec);
+    expect(longSlow.kvSeconds - longFast.kvSeconds).toBeGreaterThan(
+      shortSlow.kvSeconds - shortFast.kvSeconds
+    );
+    expect(longSlow.perUserTokensPerSec).toBeLessThan(shortSlow.perUserTokensPerSec);
+  });
 });
 
 /**

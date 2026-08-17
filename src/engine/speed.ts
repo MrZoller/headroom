@@ -7,7 +7,7 @@ import type {
   RuntimeSpec,
   UsageSpec,
 } from './types';
-import { attentionPairs, kvReadBytesPerToken } from './kv';
+import { attentionPairs, kvReadBytesPerToken, layerKvBytes } from './kv';
 import {
   activeWeightBytes,
   expertFraction,
@@ -220,7 +220,24 @@ export function estimateDecode(
   // however fast the DIMMs are.
   const spillBandwidth = offloadBandwidth(rig, hostBandwidth, runtime);
 
-  const kvSeconds = kvReadBytes / kvBandwidth;
+  /**
+   * llama.cpp leaves a prefix of shed layers on the CPU, and each layer's KV buffer follows the
+   * layer that owns it. `offloadFraction` cannot recover that cache share: it is weight-byte based,
+   * and hybrid models' layers can hold radically different amounts of KV. The assignment already
+   * records the rounded layer boundary emitted as `-ngl`, so price the actual shed prefix instead.
+   *
+   * Tensor-parallel runtimes do not shed whole layers, and a resident llama.cpp placement has an
+   * empty prefix, preserving the previous device-bandwidth estimate exactly in both cases.
+   */
+  const residentLayers = Math.min(model.layers, placement.assignment.residentLayers);
+  const shedLayers = runtime.parallelism === 'layer' ? model.layers - residentLayers : 0;
+  let hostKvReadBytes = 0;
+  for (let layer = 0; layer < shedLayers; layer++) {
+    hostKvReadBytes +=
+      layerKvBytes(model, layer, contextTokens, usage.kvPrecision, runtime) * batch;
+  }
+  const deviceKvReadBytes = kvReadBytes - hostKvReadBytes;
+  const kvSeconds = deviceKvReadBytes / kvBandwidth + hostKvReadBytes / spillBandwidth;
   const weightSeconds =
     (weightReadBytes * (1 - offload)) / deviceBandwidth + offloadedBytes / spillBandwidth;
 

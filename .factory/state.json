@@ -1,11 +1,11 @@
 {
   "project": "Headroom",
   "phase": "build",
-  "spec_approved": false,
-  "plan_approved": false,
-  "current_task": "T8",
-  "branch": "factory/t8-defer-matrix",
+  "spec_approved": true,
+  "plan_approved": true,
+  "current_task": "T10",
+  "branch": "factory/t10-host-kv-bandwidth",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-16T15:07:41Z"
+  "updated": "2026-08-17T17:50:28Z"
 }
