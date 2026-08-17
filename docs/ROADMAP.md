@@ -1042,6 +1042,17 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   which is why the checkout is `fetch-depth: 0` — the diff is asked from the merge base, and a
   shallow clone has none.
 
+The publication path was verified live in both directions in August 2026. Manual
+[run 31913354836](https://github.com/MrZoller/headroom/actions/runs/31913354836) rebuilt the stale
+branch from the then-current `main` and opened [PR #219](https://github.com/MrZoller/headroom/pull/219);
+scheduled [run 32005181371](https://github.com/MrZoller/headroom/actions/runs/32005181371) then
+committed a later substantive refresh onto that open branch and updated the same pull request. The
+repository's default workflow token remains read-only while Actions is allowed to create pull
+requests. The resulting [three-dot comparison](https://github.com/MrZoller/headroom/compare/main...catalog/refresh)
+changes only `src/data/models.generated.json`; the branch may fall behind `main` while its pull
+request is open, because preserving its review history is deliberate and the merge-base diff is the
+non-destructive change GitHub would apply.
+
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
 merge would apply — which is why only `models.generated.json` was cherry-picked out of the branch
