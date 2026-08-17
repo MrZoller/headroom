@@ -1562,13 +1562,14 @@ describe('the decode tile blames the term that sets the pace', () => {
     expect(screen.getByText(/KV traffic is the largest cost in the step/i)).toBeInTheDocument();
   });
 
-  it('still blames the bus once its time outweighs the resident reads', async () => {
+  it('attributes shed-layer KV to the cache rather than the weight bus', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    // The same rig past the crossover — the test above at 16K, this one at 32K: 8.4% spilled, and
-    // the bus term is now the larger half. One model, one card, one format, two contexts, which is
-    // what makes the pair a crossover rather than two unrelated configurations.
+    // The same rig past the crossover — the test above at 16K, this one at 32K: 8.4% of the weights
+    // spill, but the shed layers' growing KV now costs more than either half of the weight reads.
+    // Calling the weight bus the bottleneck would ignore the host-resident cache this placement
+    // necessarily creates.
     await user.selectOptions(screen.getByLabelText('Model'), 'Qwen/Qwen3-30B-A3B');
     await user.selectOptions(screen.getByLabelText('Hardware'), 'rtx-5090');
     await user.selectOptions(screen.getByLabelText('Quantization'), 'q8_0');
@@ -1576,7 +1577,8 @@ describe('the decode tile blames the term that sets the pace', () => {
       useConfig.getState().set('contextTokens', 32768);
     });
 
-    expect(screen.getByText(/host bus set the pace — 8% of them spill/i)).toBeInTheDocument();
+    expect(screen.queryByText(/host bus set the pace/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/KV traffic is the largest cost in the step/i)).toBeInTheDocument();
   });
 });
 

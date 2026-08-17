@@ -360,15 +360,7 @@ describe('offload is a cliff', () => {
       expect(placement.offloadFraction).toBeGreaterThan(0);
       expect(placement.assignment.residentLayers).toBeGreaterThan(0);
       expect(placement.assignment.residentLayers).toBeLessThan(QWEN3_32B.layers);
-      return estimateDecode(
-        QWEN3_32B,
-        quant,
-        usage,
-        rig,
-        LLAMA_CPP,
-        placement,
-        hostBandwidth
-      );
+      return estimateDecode(QWEN3_32B, quant, usage, rig, LLAMA_CPP, placement, hostBandwidth);
     };
 
     const shortFast = at(4096, 80e9);

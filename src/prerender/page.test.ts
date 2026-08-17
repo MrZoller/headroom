@@ -76,8 +76,8 @@ describe('a built page', () => {
    * Every number here was computed by `src/engine/` for this exact scenario — an RTX 5090's 31 GiB
    * allocatable ceiling against the default model's 61 GiB of weights, the cache the default
    * 32K x 1 usage sizes, the overage that follows, and the two rates the roofline produces once
-   * the spill is charged to the host bus. A heading assertion passes on a page with no engine in
-   * it at all; these cannot.
+   * the spilled weights and shed layers' KV are charged to host bandwidth. A heading assertion
+   * passes on a page with no engine in it at all; these cannot.
    *
    * They are exact, and a catalog refresh that moves a parameter count will break them. That is
    * the intended direction: correct the expected value, and never widen the pattern until it stops
@@ -91,7 +91,7 @@ describe('a built page', () => {
         'Weights 60 GiB, KV cache 1.1 GiB, Overhead 0.6 GiB. Over budget."'
     );
     expect(html).toContain('3693 tok/s prompt processing');
-    expect(html).toContain('>23<span class="ml-1 text-sm text-[var(--color-text-faint)]">tok/s');
+    expect(html).toContain('>19<span class="ml-1 text-sm text-[var(--color-text-faint)]">tok/s');
     expect(html).toContain('>2.2 s<');
     expect(html).toContain(
       '>30 GiB<span class="ml-1 text-sm text-[var(--color-text-faint)]">offloaded'
