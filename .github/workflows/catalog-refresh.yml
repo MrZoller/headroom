@@ -52,6 +52,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Pin the generation checkout and the publication base to the same current `main` commit.
+      # Fetching later would let `main` move between generation/verification and branch creation,
+      # pairing figures tested against one checkout with a refresh branch based on another.
+      - name: Select the current main base
+        run: |
+          git fetch origin main
+          git checkout --detach origin/main
+
       # Kept before the regeneration overwrites it, since the comparison below needs both.
       - name: Keep the committed catalog
         run: cp src/data/models.generated.json "$RUNNER_TEMP/committed.json"
@@ -103,10 +111,9 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          # Asked once, up here, and read twice below: it decides which commit the branch is
-          # built on, and then whether the pull request is created or edited. Asking twice would
-          # let the two disagree — a PR merged or closed mid-run would give a reset branch and
-          # then a `gh pr edit` against nothing, or the reverse — and neither half would say so.
+          # This first snapshot decides only whether an existing refresh branch carries live
+          # review that must be preserved. Publication revalidates the PR after the push, because
+          # an open PR can close or merge while this run is preparing its commit.
           #
           # `gh pr list --state open`, never `gh pr view`. `view` resolves a branch name to *any*
           # pull request that ever had it as its head, including merged ones on branches that no
@@ -125,11 +132,10 @@ jobs:
           cp "$CATALOG" "$RUNNER_TEMP/fresh.json"
           git checkout -- "$CATALOG"
 
-          # `origin/main`, not `HEAD`: one definition of the base, shared with the `--base main`
-          # this job opens its pull request against. The branch exists to be merged into main, so
-          # main is both what it is rebuilt on and what the guard below measures it against.
-          git fetch origin main
-          BASE=origin/main
+          # The detached HEAD selected before generation is the exact base the new catalog was
+          # generated and verified against. Keep the SHA rather than re-fetching a potentially
+          # newer `origin/main` here.
+          BASE=$(git rev-parse HEAD)
 
           # Empty unless the branch is reset below, and passed to `git push` unquoted so that it
           # disappears when it is. A lease rather than a bare `--force`: the only commit this run
@@ -222,10 +228,11 @@ jobs:
           BODY_EOF
           } > "$RUNNER_TEMP/body.md"
 
-          # The same `$OPEN` the branch was built against, deliberately not re-asked — see the
-          # `gh pr list` above for both why it is that call and why it is only made once.
-          if [ "$OPEN" -gt 0 ]; then
-            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
+          # Revalidate after publication. The initial snapshot may now name a PR that was closed
+          # or merged while this run generated, verified, committed and pushed the refresh.
+          OPEN_PR=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN_PR" ]; then
+            gh pr edit "$OPEN_PR" --body-file "$RUNNER_TEMP/body.md"
             echo "Updated the open refresh PR."
           else
             gh pr create --base main --head "$BRANCH" \
