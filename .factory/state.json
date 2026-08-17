@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": "T11",
-  "branch": "factory/t11-matrix-mobile-readout",
-  "pr": 229,
+  "current_task": null,
+  "branch": null,
+  "pr": null,
   "hold": false,
-  "updated": "2026-08-17T20:58:41Z"
+  "updated": "2026-08-17T21:09:51Z"
 }
