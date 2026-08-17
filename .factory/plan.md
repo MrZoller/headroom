@@ -6,7 +6,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 
 ## Tasks
 
-- [R] T10 (standard) — Speed model prices all KV reads at device bandwidth even when shed layers hold their KV in host RAM (Fixes #222)
+- [x] T10 (standard) — Speed model prices all KV reads at device bandwidth even when shed layers hold their KV in host RAM (Fixes #222)
   - acceptance: `src/engine/speed.ts` prices KV reads for shed llama.cpp layers at host offload bandwidth while preserving device-bandwidth pricing for resident-layer KV; focused `src/engine/speed.test.ts` coverage proves resident estimates are unchanged and partial-offload decode slows with host-resident KV, context growth, and constrained host bandwidth
   - pr: 227
 - [ ] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
