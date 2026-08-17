@@ -5,7 +5,7 @@
   "plan_approved": true,
   "current_task": "T10",
   "branch": "factory/t10-host-kv-bandwidth",
-  "pr": null,
+  "pr": 227,
   "hold": false,
-  "updated": "2026-08-17T17:50:28Z"
+  "updated": "2026-08-17T18:16:04Z"
 }
