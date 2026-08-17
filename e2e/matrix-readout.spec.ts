@@ -104,26 +104,42 @@ test('filling it moves neither the grid above nor the legend below', async ({ pa
 test('the visible brief readout wraps at 320px instead of scrolling the page', async ({ page }) => {
   await page.setViewportSize(NARROW);
   await page.goto('/');
-  // Rank the detail after the colon, not the full `aria-label`: the model-and-device preamble is
-  // hidden at this breakpoint and must not choose the sentence this test measures.
+  // Read the sentence the narrow viewport actually renders. Ranking an accessible name's detail
+  // chooses the wrong cell for host-KV warnings and stand-in quants: neither is derived from the
+  // label's post-colon portion. Yielding one task lets React commit the focus update; unlike a frame
+  // per cell, it keeps the full 1,470-cell sweep comfortably within Playwright's default timeout.
   const cells = grid(page).locator('td button');
-  const labels = await cells.evaluateAll((buttons) =>
-    buttons.map((button) => button.ariaLabel ?? '')
+  const longest = await cells.evaluateAll(async (buttons) => {
+    const brief = document.querySelector<HTMLElement>('[data-readout="brief"]');
+    if (!brief) throw new Error('the Matrix has no brief readout');
+
+    let longest = { index: -1, text: '' };
+    const lengths: number[] = [];
+    for (const [index, button] of buttons.entries()) {
+      button.focus();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      const text = brief.textContent?.trim() ?? '';
+      lengths.push(text.length);
+      if (text.length > longest.text.length) longest = { index, text };
+    }
+    return { ...longest, lengths };
+  });
+  expect(longest.index, 'no focused cell rendered a brief readout').toBeGreaterThanOrEqual(0);
+  expect(longest.text.length, 'the selected brief is not the longest rendered brief').toBe(
+    Math.max(...longest.lengths)
   );
-  const longest = labels.reduce(
-    (best, label, index) =>
-      label.slice(label.indexOf(':') + 1).length >
-      labels[best].slice(labels[best].indexOf(':') + 1).length
-        ? index
-        : best,
-    0
-  );
-  const cell = cells.nth(longest);
+  expect(
+    new Set(longest.lengths).size,
+    'focus updates stayed stale, so the sweep measured one cell repeatedly'
+  ).toBeGreaterThan(1);
+  const cell = cells.nth(longest.index);
   await cell.focus();
   const brief = readout(page).locator('[data-readout="brief"]');
   const full = readout(page).locator('[data-readout="full"]');
   await expect(brief).toBeVisible();
   await expect(full).toBeHidden();
+  await expect(brief).toHaveText(longest.text);
+  await expect(cell).toBeFocused();
   await expect(brief).toContainText(/.+:/);
 
   const box = await readout(page).evaluate((el) => ({
