@@ -14,7 +14,7 @@ Treat the open GitHub issue tracker as the external specification and import one
   - pr: 229
 - [!] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
-- [R] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
+- [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
   - pr: 230
 
