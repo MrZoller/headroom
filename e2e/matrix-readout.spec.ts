@@ -101,33 +101,46 @@ test('filling it moves neither the grid above nor the legend below', async ({ pa
   );
 });
 
-test('a whole sentence wraps at 320px instead of scrolling the page', async ({ page }) => {
+test('the visible brief readout wraps at 320px instead of scrolling the page', async ({ page }) => {
   await page.setViewportSize(NARROW);
   await page.goto('/');
-  // Measure the longest sentence the current catalog produces instead of assuming popularity order
-  // puts a suitably long model in the last row.
+  // Rank the detail after the colon, not the full `aria-label`: the model-and-device preamble is
+  // hidden at this breakpoint and must not choose the sentence this test measures.
   const cells = grid(page).locator('td button');
   const labels = await cells.evaluateAll((buttons) =>
     buttons.map((button) => button.ariaLabel ?? '')
   );
   const longest = labels.reduce(
-    (best, label, index) => (label.length > labels[best].length ? index : best),
+    (best, label, index) =>
+      label.slice(label.indexOf(':') + 1).length >
+      labels[best].slice(labels[best].indexOf(':') + 1).length
+        ? index
+        : best,
     0
   );
   const cell = cells.nth(longest);
   await cell.focus();
-  await expect(readout(page)).toContainText(/ on .+:/);
+  const brief = readout(page).locator('[data-readout="brief"]');
+  const full = readout(page).locator('[data-readout="full"]');
+  await expect(brief).toBeVisible();
+  await expect(full).toBeHidden();
+  await expect(brief).toContainText(/.+:/);
 
   const box = await readout(page).evaluate((el) => ({
     right: el.getBoundingClientRect().right,
     panelRight: el.closest('section')!.getBoundingClientRect().right,
     scrollWidth: el.scrollWidth,
     clientWidth: el.clientWidth,
+    sectionScrollWidth: el.closest('section')!.scrollWidth,
+    sectionClientWidth: el.closest('section')!.clientWidth,
   }));
   expect(box.scrollWidth, 'the sentence overflows its own box').toBeLessThanOrEqual(
     box.clientWidth + 1
   );
   expect(box.right, 'the readout escapes the panel').toBeLessThanOrEqual(box.panelRight + 1);
+  expect(box.sectionScrollWidth, 'the Matrix panel scrolls sideways').toBeLessThanOrEqual(
+    box.sectionClientWidth + 1
+  );
 
   // The point of measuring at all: the grid has an `overflow-x-auto` of its own and this paragraph
   // has none, so a line that cannot wrap scrolls the document, exactly as the legend did in #34.
