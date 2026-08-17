@@ -6,3 +6,8 @@ answers go inline under each question after `**A:**` (or answer in chat via
 acted on.
 
 ---
+
+## Q1 (task T12, open) — Which trusted credential should publish catalog PRs?
+Context: GitHub now creates `GITHUB_TOKEN`-authored `pull_request` runs in an approval-required state, so PR #219's Claude run had zero jobs and concluded `action_required`. The preferred minimal fix needs a repository-only GitHub App installation token, but no App client ID/private key is configured; work is parked on `factory/t12-trigger-claude-review`, and live creation/update evidence also requires managing the existing catalog PR and waiting for two substantive catalog heads.
+Options considered: A — create and install a Headroom-only GitHub App with Contents and Pull requests read/write, then provide a repository variable `CATALOG_APP_CLIENT_ID` and secret `CATALOG_APP_PRIVATE_KEY` (preferred: short-lived, narrowly scoped); B — provide a repository-scoped fine-grained PAT (simpler, but long-lived and human-owned); C — explicitly approve a larger trusted two-stage workflow design that reviews catalog heads without a new publisher credential.
+**A:**

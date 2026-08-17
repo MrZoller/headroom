@@ -12,7 +12,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
   - acceptance: the 320px Matrix Playwright coverage in `e2e/matrix-readout.spec.ts` selects and asserts the brief readout that is actually visible at that viewport, while continuing to prove the visible ranking text fits its reservation without panel or document horizontal overflow
   - pr: 229
-- [~] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
+- [!] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
 - [ ] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
