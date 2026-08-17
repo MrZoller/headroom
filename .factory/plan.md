@@ -1,12 +1,28 @@
-# Plan: (none yet)
+# Plan: Headroom issue backlog
 
-No plan has been written. After the spec is approved, run `/plan`. Task
-format and status marks (`[ ]` todo · `[~]` doing · `[R]` review · `[x]`
-done · `[!]` blocked) are defined in the `factory-protocol` skill.
+## Approach
+
+Treat the open GitHub issue tracker as the external specification and import one independently shippable task per uncovered issue. Keep prior factory-completed work and ad-hoc review debt intact, while using `Fixes #N` as the durable issue-to-task link. Ground each new task in the existing engine, component, browser-test, or workflow surface named by the issue; do not infer ordering where the issue does not establish a prerequisite. Future syncs append new work without resizing, rewording, or renumbering these tasks. The rolling parked-review-minors batch remains blocked until its normal drain trigger.
+
+## Tasks
+
+- [ ] T10 (standard) — Speed model prices all KV reads at device bandwidth even when shed layers hold their KV in host RAM (Fixes #222)
+  - acceptance: `src/engine/speed.ts` prices KV reads for shed llama.cpp layers at host offload bandwidth while preserving device-bandwidth pricing for resident-layer KV; focused `src/engine/speed.test.ts` coverage proves resident estimates are unchanged and partial-offload decode slows with host-resident KV, context growth, and constrained host bandwidth
+- [ ] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
+  - acceptance: the 320px Matrix Playwright coverage in `e2e/matrix-readout.spec.ts` selects and asserts the brief readout that is actually visible at that viewport, while continuing to prove the visible ranking text fits its reservation without panel or document horizontal overflow
+- [ ] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
+  - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
+- [ ] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
+  - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
+
+## Risks
+
+- T10 changes performance estimates across every partially offloaded llama.cpp placement; if the placement data cannot identify the host-resident KV fraction without changing the engine contract, stop and ask rather than approximate it from unrelated bytes.
+- T11 must test responsive visibility in Playwright rather than treating jsdom text presence as layout evidence.
+- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision.
+- T13 represents an open issue already covered by factory-completed T3; per the reopen rule its new task must assess the issue's current state without reviving or rewriting T3's shipped merge.
 
 ## Ad-hoc
-
-<!-- user-requested tasks land here -->
 
 The T1–T8 backlog imports below were requested directly by Chris
 (2026-08-15) and are ad-hoc pre-approved at their recorded sizes per
