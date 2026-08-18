@@ -1,11 +1,11 @@
 {
   "project": "Headroom",
-  "phase": "build",
+  "phase": "idle",
   "spec_approved": true,
   "plan_approved": true,
   "current_task": null,
   "branch": null,
   "pr": null,
   "hold": false,
-  "updated": "2026-08-18T04:59:55Z"
+  "updated": "2026-08-18T05:01:41Z"
 }
