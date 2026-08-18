@@ -1,11 +1,11 @@
 {
   "project": "Headroom",
-  "phase": "idle",
+  "phase": "build",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": null,
-  "branch": null,
-  "pr": null,
+  "current_task": "T12",
+  "branch": "factory/t12-trigger-claude-review",
+  "pr": 236,
   "hold": false,
-  "updated": "2026-08-19T04:30:00Z"
+  "updated": "2026-08-18T03:11:29Z"
 }
