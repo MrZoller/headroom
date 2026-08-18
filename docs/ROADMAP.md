@@ -1068,9 +1068,15 @@ the PR `synchronize` [Claude run
 [run 32089548826](https://github.com/MrZoller/headroom/actions/runs/32089548826) reset the stale branch
 from current `main` and opened replacement [PR #232](https://github.com/MrZoller/headroom/pull/232)
 as `headroom-catalog-publisher[bot]`; GitHub emitted its `opened` [Claude run
-32089732330](https://github.com/MrZoller/headroom/actions/runs/32089732330). The first emitted review
-also exposed Claude Code Action's separate bot-origin guard, so `claude-code-review.yml` explicitly
-allowlists this App slug rather than permitting every bot.
+32089732330](https://github.com/MrZoller/headroom/actions/runs/32089732330). Both emitted reviews failed
+at Claude Code Action's separate bot-origin guard because the allowlist was not yet on `main`, so
+`claude-code-review.yml` explicitly allowlists this App slug rather than permitting every bot. A
+temporary App-authored [PR #233](https://github.com/MrZoller/headroom/pull/233) against the task branch
+then reached the allowlisted workflow, but [run
+32090820299](https://github.com/MrZoller/headroom/actions/runs/32090820299) declined to review because
+Claude Code Action requires that workflow to have identical content on the repository default
+branch. The App's update/open events are live-proven; an end-to-end Claude verdict cannot be proven
+until the allowlist lands on `main`.
 
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
