@@ -1027,10 +1027,14 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
 - **No `--allow-partial` on a schedule.** The generator refuses a partial write by design; a
   scheduled job is exactly where a 503 on five of seventeen seeds would silently delete 29% of the
   product. A red run is the intended outcome of a bad fetch.
-- **The whole gate runs inside the refresh job, before the PR is opened.** GitHub deliberately does
-  not trigger workflows on a push made with `GITHUB_TOKEN`, so the pull request it opens gets no CI
-  of its own. Verifying in the same job is what stops a new model with an attention shape the
-  engine cannot price arriving in a green-looking PR.
+- **The whole gate runs inside the refresh job, before the PR is opened.** Verification is a
+  publication precondition, not delegated to the PR: a new model with an attention shape the engine
+  cannot price must never reach the refresh branch. Publication uses a short-lived installation
+  token from the repo-only `headroom-catalog-publisher` App because GitHub suppresses workflow
+  events caused by `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the
+  ordinary CI and Claude review workflows. The workflow's own token remains read-only, while the
+  installation token explicitly narrows the App's Contents and Pull requests grants to read/write
+  for this repository and is revoked when the job ends.
 - **Whether to commit on top of `catalog/refresh` or reset it is decided by whether a pull request
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
@@ -1052,6 +1056,10 @@ requests. The resulting [three-dot comparison](https://github.com/MrZoller/headr
 changes only `src/data/models.generated.json`; the branch may fall behind `main` while its pull
 request is open, because preserving its review history is deliberate and the merge-base diff is the
 non-destructive change GitHub would apply.
+
+The review-trigger path uses repository variable `CATALOG_APP_CLIENT_ID` and Actions secret
+`CATALOG_APP_PRIVATE_KEY`; neither credential is committed. [Live App-token evidence to be recorded
+with the validating creation and update runs before #215 closes.]
 
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
