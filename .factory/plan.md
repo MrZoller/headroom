@@ -12,7 +12,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T11 (standard) — Matrix ranking blurb asserts on text hidden at 320px viewport (Fixes #216)
   - acceptance: the 320px Matrix Playwright coverage in `e2e/matrix-readout.spec.ts` selects and asserts the brief readout that is actually visible at that viewport, while continuing to prove the visible ranking text fits its reservation without panel or document horizontal overflow
   - pr: 229
-- [x] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215) (dropped: the Claude review workflow was retired 2026-08-18 for a credential-exposure hole — MrZoller/opencode-factory#48 — so this task's acceptance cannot be met and its premise is gone; #215 is already closed; parked branch factory/t12-trigger-claude-review dies with the task)
+- [!] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
 - [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
@@ -22,7 +22,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 
 - T10 changes performance estimates across every partially offloaded llama.cpp placement; if the placement data cannot identify the host-resident KV fraction without changing the engine contract, stop and ask rather than approximate it from unrelated bytes.
 - T11 must test responsive visibility in Playwright rather than treating jsdom text presence as layout evidence.
-- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision. **This risk materialised (2026-08-19).** The safeguards could not be preserved: the workflow's own definition was PR-controlled, so no containment written inside it held. The workflow was removed rather than fixed and T12 dropped; the security design decision the risk called for is open at MrZoller/opencode-factory#48.
+- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision.
 - T13 represents an open issue already covered by factory-completed T3; per the reopen rule its new task must assess the issue's current state without reviving or rewriting T3's shipped merge.
 
 ## Ad-hoc
