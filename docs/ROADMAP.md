@@ -1027,10 +1027,16 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
 - **No `--allow-partial` on a schedule.** The generator refuses a partial write by design; a
   scheduled job is exactly where a 503 on five of seventeen seeds would silently delete 29% of the
   product. A red run is the intended outcome of a bad fetch.
-- **The whole gate runs inside the refresh job, before the PR is opened.** GitHub deliberately does
-  not trigger workflows on a push made with `GITHUB_TOKEN`, so the pull request it opens gets no CI
-  of its own. Verifying in the same job is what stops a new model with an attention shape the
-  engine cannot price arriving in a green-looking PR.
+- **The whole gate runs inside the refresh job, before the PR is opened.** Verification is a
+  publication precondition, not delegated to the PR: a new model with an attention shape the engine
+  cannot price must never reach the refresh branch. Publication uses a short-lived installation
+  token from the repo-only `headroom-catalog-publisher` App because GitHub suppresses workflow
+  events caused by `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the
+  ordinary CI and Claude review workflows. The workflow's own token remains read-only, while the
+  installation token explicitly narrows the App's Contents and Pull requests grants to read/write
+  for this repository and is revoked when the job ends. Claude allowlists only that publisher bot;
+  the existing same-repository, non-draft, and Dependabot exclusions still bind before its secret is
+  exposed.
 - **Whether to commit on top of `catalog/refresh` or reset it is decided by whether a pull request
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
@@ -1052,6 +1058,40 @@ requests. The resulting [three-dot comparison](https://github.com/MrZoller/headr
 changes only `src/data/models.generated.json`; the branch may fall behind `main` while its pull
 request is open, because preserving its review history is deliberate and the merge-base diff is the
 non-destructive change GitHub would apply.
+
+The review-trigger path uses repository variable `CATALOG_APP_CLIENT_ID` and Actions secret
+`CATALOG_APP_PRIVATE_KEY`; neither credential is committed. Manual [run
+32089353541](https://github.com/MrZoller/headroom/actions/runs/32089353541) minted the scoped token,
+pushed substantive head `c09d549`, and updated the then-open PR #219; GitHub immediately emitted
+the PR `synchronize` [Claude run
+32089491994](https://github.com/MrZoller/headroom/actions/runs/32089491994). After closing that PR,
+[run 32089548826](https://github.com/MrZoller/headroom/actions/runs/32089548826) reset the stale branch
+from current `main` and opened replacement [PR #232](https://github.com/MrZoller/headroom/pull/232)
+as `headroom-catalog-publisher[bot]`; GitHub emitted its `opened` [Claude run
+32089732330](https://github.com/MrZoller/headroom/actions/runs/32089732330). Both emitted reviews failed
+at Claude Code Action's separate bot-origin guard because the allowlist was not yet on `main`, so
+`claude-code-review.yml` explicitly allowlists this App slug rather than permitting every bot. A
+temporary App-authored [PR #233](https://github.com/MrZoller/headroom/pull/233) against the task branch
+then reached the allowlisted workflow, but [run
+32090820299](https://github.com/MrZoller/headroom/actions/runs/32090820299) declined to review because
+Claude Code Action requires that workflow to have identical content on the repository default
+branch.
+
+The allowlist landed separately in [PR #234](https://github.com/MrZoller/headroom/pull/234), after
+which both paths completed end to end against the default-branch review workflow. To make the update
+test substantive rather than timestamp-only, controlled head `52fc12e` made one catalog download
+count stale on the open PR; refresh [run
+32093117907](https://github.com/MrZoller/headroom/actions/runs/32093117907) restored the generated
+value with App-authored head `4223caf`, emitted a `synchronize` event, and Claude [run
+32093254279](https://github.com/MrZoller/headroom/actions/runs/32093254279) accepted the allowlisted bot
+and delivered its review on [PR #232](https://github.com/MrZoller/headroom/pull/232). After that
+evidence PR was closed and its branch deleted, refresh [run
+32093559305](https://github.com/MrZoller/headroom/actions/runs/32093559305) rebuilt from current `main`
+and opened [PR #235](https://github.com/MrZoller/headroom/pull/235) as the publisher App; its
+`opened` event likewise ran Claude successfully in [run
+32093670938](https://github.com/MrZoller/headroom/actions/runs/32093670938). Thus creation and later
+refresh pushes both enter the ordinary review path without widening the existing untrusted-PR
+guards.
 
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
