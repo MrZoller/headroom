@@ -1034,7 +1034,9 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   events caused by `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the
   ordinary CI and Claude review workflows. The workflow's own token remains read-only, while the
   installation token explicitly narrows the App's Contents and Pull requests grants to read/write
-  for this repository and is revoked when the job ends.
+  for this repository and is revoked when the job ends. Claude allowlists only that publisher bot;
+  the existing same-repository, non-draft, and Dependabot exclusions still bind before its secret is
+  exposed.
 - **Whether to commit on top of `catalog/refresh` or reset it is decided by whether a pull request
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
