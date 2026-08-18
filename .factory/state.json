@@ -3,9 +3,9 @@
   "phase": "build",
   "spec_approved": true,
   "plan_approved": true,
-  "current_task": "T12",
-  "branch": "factory/t12-trigger-claude-review",
+  "current_task": "T9",
+  "branch": "factory/t9-parked-review-minors",
   "pr": null,
   "hold": false,
-  "updated": "2026-08-18T02:15:13Z"
+  "updated": "2026-08-17T22:44:43Z"
 }
