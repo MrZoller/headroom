@@ -1060,8 +1060,17 @@ request is open, because preserving its review history is deliberate and the mer
 non-destructive change GitHub would apply.
 
 The review-trigger path uses repository variable `CATALOG_APP_CLIENT_ID` and Actions secret
-`CATALOG_APP_PRIVATE_KEY`; neither credential is committed. [Live App-token evidence to be recorded
-with the validating creation and update runs before #215 closes.]
+`CATALOG_APP_PRIVATE_KEY`; neither credential is committed. Manual [run
+32089353541](https://github.com/MrZoller/headroom/actions/runs/32089353541) minted the scoped token,
+pushed substantive head `c09d549`, and updated the then-open PR #219; GitHub immediately emitted
+the PR `synchronize` [Claude run
+32089491994](https://github.com/MrZoller/headroom/actions/runs/32089491994). After closing that PR,
+[run 32089548826](https://github.com/MrZoller/headroom/actions/runs/32089548826) reset the stale branch
+from current `main` and opened replacement [PR #232](https://github.com/MrZoller/headroom/pull/232)
+as `headroom-catalog-publisher[bot]`; GitHub emitted its `opened` [Claude run
+32089732330](https://github.com/MrZoller/headroom/actions/runs/32089732330). The first emitted review
+also exposed Claude Code Action's separate bot-origin guard, so `claude-code-review.yml` explicitly
+allowlists this App slug rather than permitting every bot.
 
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
