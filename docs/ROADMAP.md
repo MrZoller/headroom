@@ -1075,8 +1075,23 @@ temporary App-authored [PR #233](https://github.com/MrZoller/headroom/pull/233) 
 then reached the allowlisted workflow, but [run
 32090820299](https://github.com/MrZoller/headroom/actions/runs/32090820299) declined to review because
 Claude Code Action requires that workflow to have identical content on the repository default
-branch. The App's update/open events are live-proven; an end-to-end Claude verdict cannot be proven
-until the allowlist lands on `main`.
+branch.
+
+The allowlist landed separately in [PR #234](https://github.com/MrZoller/headroom/pull/234), after
+which both paths completed end to end against the default-branch review workflow. To make the update
+test substantive rather than timestamp-only, controlled head `52fc12e` made one catalog download
+count stale on the open PR; refresh [run
+32093117907](https://github.com/MrZoller/headroom/actions/runs/32093117907) restored the generated
+value with App-authored head `4223caf`, emitted a `synchronize` event, and Claude [run
+32093254279](https://github.com/MrZoller/headroom/actions/runs/32093254279) accepted the allowlisted bot
+and delivered its review on [PR #232](https://github.com/MrZoller/headroom/pull/232). After that
+evidence PR was closed and its branch deleted, refresh [run
+32093559305](https://github.com/MrZoller/headroom/actions/runs/32093559305) rebuilt from current `main`
+and opened [PR #235](https://github.com/MrZoller/headroom/pull/235) as the publisher App; its
+`opened` event likewise ran Claude successfully in [run
+32093670938](https://github.com/MrZoller/headroom/actions/runs/32093670938). Thus creation and later
+refresh pushes both enter the ordinary review path without widening the existing untrusted-PR
+guards.
 
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
