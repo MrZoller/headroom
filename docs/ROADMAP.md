@@ -1032,11 +1032,15 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   cannot price must never reach the refresh branch. Publication uses a short-lived installation
   token from the repo-only `headroom-catalog-publisher` App because GitHub suppresses workflow
   events caused by `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the
-  ordinary CI and Claude review workflows. The workflow's own token remains read-only, while the
+  ordinary CI workflows. The workflow's own token remains read-only, while the
   installation token explicitly narrows the App's Contents and Pull requests grants to read/write
-  for this repository and is revoked when the job ends. Claude allowlists only that publisher bot;
-  the existing same-repository, non-draft, and Dependabot exclusions still bind before its secret is
-  exposed.
+  for this repository and is revoked when the job ends.
+
+  **Claude review was removed on 2026-08-18** and no longer runs on these pull requests. It handed a
+  long-lived OAuth token to a job whose definition the reviewed pull request controlled, and each
+  containment attempt was bypassed in turn; see `MrZoller/opencode-factory#48`. The publisher-bot
+  allowlist described below went with the workflow, so if review is ever restored that allowlist
+  must be restored with it. Codex is the review gate in the meantime.
 - **Whether to commit on top of `catalog/refresh` or reset it is decided by whether a pull request
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
@@ -1076,6 +1080,12 @@ then reached the allowlisted workflow, but [run
 32090820299](https://github.com/MrZoller/headroom/actions/runs/32090820299) declined to review because
 Claude Code Action requires that workflow to have identical content on the repository default
 branch.
+
+*Historical record, retained deliberately.* The workflow those runs describe was removed on
+2026-08-18 for a credential-exposure hole unrelated to the bot-origin work above, so none of these
+runs can recur. The default-branch-identity requirement in the last sentence is worth keeping in
+view: it turned out to be the only guard the action applies to itself, and it is not a substitute
+for the workflow definition being trusted.
 
 The allowlist landed separately in [PR #234](https://github.com/MrZoller/headroom/pull/234), after
 which both paths completed end to end against the default-branch review workflow. To make the update
