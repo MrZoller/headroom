@@ -1041,6 +1041,7 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   containment attempt was bypassed in turn; see `MrZoller/opencode-factory#48`. The publisher-bot
   allowlist described below went with the workflow, so if review is ever restored that allowlist
   must be restored with it. Codex is the review gate in the meantime.
+
 - **Whether to commit on top of `catalog/refresh` or reset it is decided by whether a pull request
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
@@ -1081,7 +1082,7 @@ then reached the allowlisted workflow, but [run
 Claude Code Action requires that workflow to have identical content on the repository default
 branch.
 
-*Historical record, retained deliberately.* The workflow those runs describe was removed on
+_Historical record, retained deliberately._ The workflow those runs describe was removed on
 2026-08-18 for a credential-exposure hole unrelated to the bot-origin work above, so none of these
 runs can recur. The default-branch-identity requirement in the last sentence is worth keeping in
 view: it turned out to be the only guard the action applies to itself, and it is not a substitute
