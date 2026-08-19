@@ -84,11 +84,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          find . -path ./.git -prune -o -type d -name '.claude' -print0 \
-            | xargs -0 -r rm -rf
-          find . -path ./.git -prune -o -type f \
-            \( -name '.mcp.json' -o -name 'CLAUDE.md' -o -name 'AGENTS.md' \) \
-            -print0 | xargs -0 -r rm -f
+          # Matched by NAME ONLY - never -type. A PR can commit `.claude` as a
+          # symlink to a tracked directory it also controls; `-type d` does not
+          # select a symlink, so a type-qualified sweep leaves the link intact
+          # and the agent resolves PR-authored hooks straight through it. The
+          # same applies to the instruction files. Removing a link does not
+          # follow it, so the link dies and its target stays as ordinary
+          # repository content that no longer loads as configuration.
+          find . -path ./.git -prune -o \
+            \( -name '.claude' -o -name '.mcp.json' \
+               -o -name 'CLAUDE.md' -o -name 'AGENTS.md' \) \
+            -print0 | xargs -0 -r rm -rf
 
           # Restore only CLAUDE.md / AGENTS.md, and only where the BASE tree
           # has them. .claude/ and .mcp.json are never restored.
@@ -99,7 +105,16 @@ jobs:
 
           while IFS= read -r f; do
             [ -n "$f" ] || continue
-            mkdir -p "$(dirname "$f")"
+            # Refuse to restore through a symlinked ancestor. The sweep removes
+            # agent-config NAMES; it does not remove an attacker-controlled
+            # `src -> /tmp/x` on the way to `src/CLAUDE.md`, and writing there
+            # would place trusted content outside the checkout.
+            d=$(dirname "$f")
+            if [ -L "$d" ]; then
+              echo "refusing to restore $f through symlinked $d"
+              continue
+            fi
+            mkdir -p "$d"
             if gh api "repos/$REPO/contents/$f?ref=$BASE_SHA" \
                  -H "Accept: application/vnd.github.raw" > "$f" 2>/dev/null; then
               echo "restored $f from $BASE_SHA"
