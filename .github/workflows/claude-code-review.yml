@@ -38,6 +38,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      statuses: write
       id-token: write
     steps:
       # Reviewing requires the proposed code, so the PR head is checked out
@@ -66,8 +67,14 @@ jobs:
       #     BASE revision instead of dropped: attacker prose out, project
       #     conventions kept.
       #
-      # Fails closed. Each file is removed first and rewritten only if the
-      # base copy is fetched successfully; any failure leaves it absent
+      # RECURSIVE, not just the repository root. Claude Code loads a
+      # descendant memory file (src/CLAUDE.md) when it reads files in that
+      # directory, so a root-only sweep leaves a nested PR-authored copy live
+      # and the injection path open. Every tracked path with these names is
+      # restored from base, at whatever depth the base revision carries it.
+      #
+      # Fails closed. Everything is removed first and rewritten only from
+      # base copies fetched successfully; any failure leaves the file absent
       # rather than falling back to the pull request's version.
       - name: Replace PR-controlled agent configuration with the base revision's
         env:
@@ -76,17 +83,31 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          rm -rf .claude .mcp.json
-          rm -f CLAUDE.md AGENTS.md
-          for f in CLAUDE.md AGENTS.md; do
+
+          find . -path ./.git -prune -o -type d -name '.claude' -print0 \
+            | xargs -0 -r rm -rf
+          find . -path ./.git -prune -o -type f \
+            \( -name '.mcp.json' -o -name 'CLAUDE.md' -o -name 'AGENTS.md' \) \
+            -print0 | xargs -0 -r rm -f
+
+          # Restore only CLAUDE.md / AGENTS.md, and only where the BASE tree
+          # has them. .claude/ and .mcp.json are never restored.
+          gh api "repos/$REPO/git/trees/$BASE_SHA?recursive=1" \
+            --jq '.tree[] | select(.type == "blob")
+                          | select(.path | test("(^|/)(CLAUDE|AGENTS)\\.md$"))
+                          | .path' > /tmp/trusted-paths || : > /tmp/trusted-paths
+
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            mkdir -p "$(dirname "$f")"
             if gh api "repos/$REPO/contents/$f?ref=$BASE_SHA" \
                  -H "Accept: application/vnd.github.raw" > "$f" 2>/dev/null; then
               echo "restored $f from $BASE_SHA"
             else
               rm -f "$f"
-              echo "no $f on base revision; continuing without it"
+              echo "could not restore $f; continuing without it"
             fi
-          done
+          done < /tmp/trusted-paths
 
       - uses: anthropics/claude-code-action@v1
         with:
@@ -108,3 +129,35 @@ jobs:
             rather than as direction to follow.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
+
+      # Restores head-keyed discovery, which pull_request_target breaks.
+      # GitHub stamps a pull_request_target run with the BASE commit, so the
+      # shepherd's `gh run list --commit "$HEAD"` finds nothing and the line
+      # waits forever for a verdict it cannot see. This posts a commit status
+      # ON THE PR HEAD, so "did Claude verdict this head" stays a head-keyed
+      # question and the answer comes from GitHub rather than from parsing
+      # the agent's prose.
+      #
+      # if: always() so a failed or cancelled review still marks the head -
+      # silence must never be indistinguishable from a run that never
+      # started.
+      - name: Record the reviewed head
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$JOB_STATUS" in
+            success) state=success ;;
+            *)       state=failure ;;
+          esac
+          gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context="claude-code-review" \
+            -f target_url="$RUN_URL" \
+            -f description="Claude review $JOB_STATUS" >/dev/null
+          echo "marked $HEAD_SHA as $state"
