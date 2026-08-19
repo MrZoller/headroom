@@ -93,14 +93,15 @@ jobs:
           # repository content that no longer loads as configuration.
           find . -path ./.git -prune -o \
             \( -name '.claude' -o -name '.mcp.json' \
-               -o -name 'CLAUDE.md' -o -name 'AGENTS.md' \) \
+               -o -name 'CLAUDE.md' -o -name 'CLAUDE.local.md' \
+               -o -name 'AGENTS.md' -o -name 'AGENTS.local.md' \) \
             -print0 | xargs -0 -r rm -rf
 
           # Restore only CLAUDE.md / AGENTS.md, and only where the BASE tree
           # has them. .claude/ and .mcp.json are never restored.
           gh api "repos/$REPO/git/trees/$BASE_SHA?recursive=1" \
             --jq '.tree[] | select(.type == "blob")
-                          | select(.path | test("(^|/)(CLAUDE|AGENTS)\\.md$"))
+                          | select(.path | test("(^|/)(CLAUDE|AGENTS)(\\.local)?\\.md$"))
                           | .path' > /tmp/trusted-paths || : > /tmp/trusted-paths
 
           while IFS= read -r f; do
@@ -125,6 +126,7 @@ jobs:
           done < /tmp/trusted-paths
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The catalog publisher is the only bot allowed to initiate a review. Dependabot stays
@@ -163,16 +165,37 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           JOB_STATUS: ${{ job.status }}
+          CLAUDE_CONCLUSION: ${{ steps.claude.outputs.conclusion }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          case "$JOB_STATUS" in
-            success) state=success ;;
-            *)       state=failure ;;
-          esac
+
+          # Gate on the ACTION's conclusion, never on job status. A job can end
+          # green having delivered no review at all: claude-code-action's
+          # workflow-identity guard exits successfully without running when the
+          # checked-out workflow differs from the default branch, and a PR that
+          # edits this file triggers exactly that. Mapping job status would then
+          # post `success` for an unreviewed head and the shepherd would treat
+          # the PR as reviewed - turning the cross-family gate off silently,
+          # which is worse than not having it.
+          #
+          # A skipped action never sets `conclusion`, so an empty value is the
+          # discriminator. Fails closed: anything other than an explicit
+          # success is reported as failure.
+          if [ "$CLAUDE_CONCLUSION" = "success" ]; then
+            state=success
+            desc="Claude review completed"
+          elif [ -z "$CLAUDE_CONCLUSION" ]; then
+            state=failure
+            desc="Claude did not run - no verdict for this head"
+          else
+            state=failure
+            desc="Claude review $CLAUDE_CONCLUSION (job $JOB_STATUS)"
+          fi
+
           gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" \
             -f state="$state" \
             -f context="claude-code-review" \
             -f target_url="$RUN_URL" \
-            -f description="Claude review $JOB_STATUS" >/dev/null
-          echo "marked $HEAD_SHA as $state"
+            -f description="$desc" >/dev/null
+          echo "marked $HEAD_SHA as $state: $desc"
