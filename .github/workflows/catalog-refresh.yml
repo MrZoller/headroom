@@ -234,8 +234,9 @@ jobs:
 
           `npm run lint`, `npm run format:check`, `npm test` and `npm run build` all passed against
           this catalog inside the refresh job before publication. The repository-scoped publisher
-          App also lets this pull request and later refresh pushes trigger their ordinary CI and
-          Claude review workflows.
+          App also lets this pull request and later refresh pushes trigger their ordinary CI
+          workflows. Claude review was retired on 2026-08-18 (see
+          MrZoller/opencode-factory#48); Codex is the review gate.
 
           🤖 Generated with [Claude Code](https://claude.com/claude-code)
           BODY_EOF
