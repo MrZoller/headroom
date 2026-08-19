@@ -30,10 +30,15 @@ jobs:
     # so anyone can open a pull request from a fork, and under
     # pull_request_target a fork PR would receive the token. This condition
     # is the only boundary keeping the credential inside the trust domain -
-    # do not relax it. Dependabot is excluded because its branches are
-    # machine-authored and need no cross-family review, not because the
-    # runner withholds secrets: under this trigger it would not.
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    # do not relax it.
+    #
+    # Dependabot is tested by PR AUTHOR, not github.actor. The actor is
+    # whoever triggered the event, so a maintainer reopening or readying a
+    # Dependabot PR makes the actor a human and an actor test passes - handing
+    # the token to a machine-authored branch. Under pull_request the actor
+    # test was defensible because those runs carried no secrets; under this
+    # trigger they do, and the rationale inverts.
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
