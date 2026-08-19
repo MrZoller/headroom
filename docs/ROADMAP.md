@@ -1104,6 +1104,13 @@ and opened [PR #235](https://github.com/MrZoller/headroom/pull/235) as the publi
 refresh pushes both enter the ordinary review path without widening the existing untrusted-PR
 guards.
 
+_Also historical, as of 2026-08-18._ The allowlist and every review run described in this paragraph
+lived in `claude-code-review.yml`, which has been deleted. Catalog PRs still enter the ordinary CI
+path; they no longer enter a Claude review path, because there is none. The account is kept because
+the App-authored `opened` and `synchronize` evidence is what proves the publisher App triggers
+workflow events at all — that finding survives the workflow's removal and would have to be
+re-established from scratch otherwise.
+
 **Read this before re-deriving #193's damage estimate.** `git diff main catalog/refresh` on the
 stranded branch read as thousands of deletions, and #193's status comment took that as the diff a
 merge would apply — which is why only `models.generated.json` was cherry-picked out of the branch
