@@ -4,13 +4,16 @@ import {
   NOT_SEEDED,
   SEEDS,
   assertOneBoundedWindow,
+  collectPinnedHeaders,
   deriveAttention,
+  deriveHeaderTotalParams,
   deriveLayerWindows,
   deriveMoe,
   deriveTotalParams,
   duplicatedOutputParams,
   publishedActiveParams,
   reconcileActiveParams,
+  retryDelayMs,
   seededIds,
   staleRefusals,
   unseededCandidates,
@@ -1429,6 +1432,172 @@ describe('MXFP4 expert layout validation', () => {
       safetensors: { parameters: { U8: expertParams }, total: expertParams },
     };
     expect(() => deriveTotalParams(api.id, api, expertParams)).toThrow(/headers do not prove/);
+  });
+});
+
+/**
+ * FP8 block scales are metadata for a matrix, not another matrix's worth of model capacity.
+ *
+ * The `weight_scale_inv` spelling and F32 dtype are taken from the same-revision MiniMax M2.7
+ * shards behind #239: one F32 inverse scale serves every 128 x 128 F8 block. The pinned headers
+ * therefore prove 16,512 logical parameters while storing 16,513 elements. HF has published each
+ * exact convention for this layout, so either is evidence of the same checkpoint — no nearby
+ * aggregate is.
+ */
+describe('pinned safetensors headers verify logical parameter totals', () => {
+  const PINNED_FP8_HEADERS = {
+    'model.layers.0.mlp.down_proj.weight': { dtype: 'F8_E4M3FN', shape: [128, 128] },
+    'model.layers.0.mlp.down_proj.weight_scale_inv': { dtype: 'F32', shape: [1] },
+    // F32 is not itself evidence of a scale: this ordinary norm is a model parameter.
+    'model.layers.0.input_layernorm.weight': { dtype: 'F32', shape: [128] },
+  };
+  const LOGICAL_TOTAL = 16_512;
+  const STORED_TOTAL = 16_513;
+
+  it.each([
+    ['the exact stored-element total', STORED_TOTAL],
+    ['the exact logical-parameter total', LOGICAL_TOTAL],
+  ])('publishes one logical total when the API reports %s', (_, apiSummaryTotal) => {
+    expect(
+      deriveHeaderTotalParams('MiniMaxAI/MiniMax-M2.7', PINNED_FP8_HEADERS, apiSummaryTotal)
+    ).toBe(LOGICAL_TOTAL);
+  });
+
+  it('excludes supported F32/BF16 scale metadata, including Ministral scalar BF16, and nothing else', () => {
+    // Ministral 3's actual checkpoint puts scalar BF16 activation and inverse-weight scales beside
+    // each projection. The two underscore-only spellings guard the broader evidence-backed suffix
+    // contract; ordinary BF16/F32 tensors and a scale-like F8 tensor remain parameters.
+    expect(
+      deriveHeaderTotalParams(
+        'mistralai/Ministral-3-3B-Instruct-2512',
+        {
+          'language_model.model.layers.0.self_attn.q_proj.weight_scale_inv': {
+            dtype: 'BF16',
+            shape: [],
+          },
+          'language_model.model.layers.0.self_attn.q_proj.activation_scale': {
+            dtype: 'BF16',
+            shape: [],
+          },
+          'model.f32_scale_inv': { dtype: 'F32', shape: [] },
+          'model.bf16_activation_scale': { dtype: 'BF16', shape: [] },
+          'model.f32_norm.weight': { dtype: 'F32', shape: [3] },
+          'model.bf16_norm.weight': { dtype: 'BF16', shape: [5] },
+          'model.f8.weight_scale_inv': { dtype: 'F8_E4M3FN', shape: [7] },
+        },
+        15
+      )
+    ).toBe(15);
+
+    // U8 MXFP4 scales never enter the metadata exception: their logical count comes only from the
+    // independently validated block/scale layout above.
+    expect(() =>
+      deriveHeaderTotalParams(
+        'openai/gpt-oss-120b',
+        { 'model.layers.0.mlp.experts.gate_up_proj_scales': { dtype: 'U8', shape: [1] } },
+        0
+      )
+    ).toThrowError(/packed tensors without a validated logical parameter count/);
+  });
+
+  it('refuses a third same-revision API figure while naming pinned and API figures', () => {
+    expect(() =>
+      deriveHeaderTotalParams('MiniMaxAI/MiniMax-M2.7', PINNED_FP8_HEADERS, STORED_TOTAL + 1)
+    ).toThrowError(/pinned headers.*16[,_]?512.*API summary.*16[,_]?514/i);
+  });
+
+  it.each([
+    ['no Retry-After header', null],
+    ['an empty Retry-After header', ''],
+    ['a non-positive Retry-After header', '0'],
+  ])('falls back to exponential retry delay for %s', (_, retryAfter) => {
+    expect(retryDelayMs(retryAfter, 3)).toBe(4_000);
+  });
+
+  it('honours positive numeric Retry-After delays up to the retry cap', () => {
+    expect(retryDelayMs('1.5', 1)).toBe(1_500);
+    expect(retryDelayMs('31', 1)).toBe(30_000);
+  });
+
+  it('honours a future HTTP-date Retry-After against the injected clock', () => {
+    const now = Date.parse('2026-08-20T12:00:00Z');
+    expect(retryDelayMs('Thu, 20 Aug 2026 12:00:05 GMT', 1, now)).toBe(5_000);
+  });
+
+  it('collects every indexed tensor from its assigned shard', () => {
+    const first = { 'model.embed_tokens.weight': { dtype: 'BF16', shape: [2, 3] } };
+    const second = { 'model.layers.0.weight': { dtype: 'F32', shape: [3] } };
+    const headersByShard = new Map<string, Record<string, { dtype?: string; shape?: number[] }>>([
+      ['model-00001-of-00002.safetensors', first],
+      ['model-00002-of-00002.safetensors', second],
+    ]);
+    expect(
+      collectPinnedHeaders(
+        'example/two-shards',
+        {
+          'model.embed_tokens.weight': 'model-00001-of-00002.safetensors',
+          'model.layers.0.weight': 'model-00002-of-00002.safetensors',
+        },
+        headersByShard
+      )
+    ).toEqual({ ...first, ...second });
+  });
+
+  it('refuses a tensor in a shard other than the index assigns', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/wrong-shard',
+        { 'model.weight': 'model-00001-of-00002.safetensors' },
+        new Map([
+          ['model-00002-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+        ])
+      )
+    ).toThrowError(/contains model\.weight, but the index assigns it to model-00001-of-00002/);
+  });
+
+  it('refuses a tensor repeated across shards', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/duplicate',
+        { 'model.weight': 'model-00001-of-00002.safetensors' },
+        new Map([
+          ['model-00001-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+          ['model-00002-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+        ])
+      )
+    ).toThrowError(/pinned tensor model\.weight appears in more than one shard/);
+  });
+
+  it('refuses an index tensor its assigned header omits', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/missing-header',
+        {
+          'model.present': 'model.safetensors',
+          'model.absent': 'model.safetensors',
+        },
+        new Map([['model.safetensors', { 'model.present': { dtype: 'BF16', shape: [2] } }]])
+      )
+    ).toThrowError(/index assigns model\.absent to model\.safetensors, but that header omits it/);
+  });
+
+  it('refuses unreadable header fields and unsafe total accumulation', () => {
+    expect(() =>
+      deriveHeaderTotalParams('example/no-dtype', { 'model.weight': { shape: [1] } }, 1)
+    ).toThrowError(/model\.weight carries no dtype/);
+    expect(() =>
+      deriveHeaderTotalParams('example/no-shape', { 'model.weight': { dtype: 'BF16' } }, 1)
+    ).toThrowError(/model\.weight carries no shape/);
+    expect(() =>
+      deriveHeaderTotalParams(
+        'example/unsafe-total',
+        {
+          'model.first': { dtype: 'BF16', shape: [Number.MAX_SAFE_INTEGER] },
+          'model.second': { dtype: 'BF16', shape: [1] },
+        },
+        Number.MAX_SAFE_INTEGER
+      )
+    ).toThrowError(/stored-element total exceeds safe integer range/);
   });
 });
 

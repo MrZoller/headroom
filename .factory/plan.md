@@ -19,6 +19,8 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
   - pr: 230
+- [~] T15 (standard) — catalog: verify parameter totals against the pinned safetensors headers, not only the mutable API summary (Fixes #239)
+  - acceptance: `scripts/build-catalog.ts` derives logical tensor totals for every seed from the pinned safetensors index and shard headers, excluding scale tensors by name and dtype, and compares them with the Hugging Face API summary; agreement publishes while disagreement throws a `DerivationError` naming both figures; `scripts/build-catalog.test.ts` covers same-revision summary drift, `npm run catalog` remains byte-identical where headers and summary agree, and the existing llama.cpp-size and DeepSeek-KV reference tests pass
 
 ## Risks
 
@@ -26,6 +28,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 - T11 must test responsive visibility in Playwright rather than treating jsdom text presence as layout evidence.
 - T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision. **This risk materialised (2026-08-19).** The safeguards could not be preserved: the workflow's own definition was PR-controlled, so no containment written inside it held. The workflow was removed rather than fixed (#237); T12 had already merged as #236 the day before, so it stands complete with its review premise retired. The security design decision the risk called for is open at MrZoller/opencode-factory#48.
 - T13 represents an open issue already covered by factory-completed T3; per the reopen rule its new task must assess the issue's current state without reviving or rewriting T3's shipped merge.
+- T15 adds header inspection across every catalog seed; if a seeded repository cannot expose a pinned index/header without unsafe full-shard downloads, or scale tensors cannot be excluded by an evidence-backed rule, stop and ask rather than silently trusting either aggregate.
 
 ## Ad-hoc
 
@@ -67,7 +70,8 @@ those gates literally.)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - pr: 231
-- [~] T14 (trivial) — parked review minors (batch) — released 2026-08-20: Chris asked to work through the backlog; the batch drains with it (the human-asking drain trigger, as with T9's 2026-08-17 release)
+- [x] T14 (trivial) — parked review minors (batch) — released 2026-08-20: Chris asked to work through the backlog; the batch drains with it (the human-asking drain trigger, as with T9's 2026-08-17 release)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - (moved from completed T9's record 2026-08-17 — they were parked there after its merge; the rolling batch re-seeds here since re-sync never does)
+  - pr: 238

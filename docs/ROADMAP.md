@@ -2263,6 +2263,19 @@ ceiling)` keeps an over-budget stack on screen, which is right and stays. What i
   and the repository's unchanged [commit
   history](https://huggingface.co/api/models/openai/gpt-oss-120b/commits/main).
 
+  FP8 summaries have the same mutable-convention problem one level down (#239). MiniMax M2.7 and
+  Kimi K2 omit F32 inverse block scales from `safetensors.total`; DeepSeek V3/R1/V3.1 include the
+  same suffix and dtype; Ministral 3 stores scalar BF16 inverse-weight and activation scales but
+  omits them from the summary. Mistral Small 4's dtype buckets even omit 576 scalar scales that its
+  own `total` retains. The generator therefore reads every pinned shard header for every seed and
+  derives one logical total: BF16/F32 tensors ending in the evidenced `weight_scale_inv`,
+  `activation_scale`, `_scale_inv`, or `_activation_scale` spellings are quantization metadata,
+  while ordinary BF16/F32 state remains a parameter. The API may equal the exact stored-element
+  total or that exact logical total — both conventions are proved by the same headers and produce
+  the same catalog row — but any third figure stops publication. Header ranges remain mandatory:
+  a server that answers `200` rather than `206` is refused so this proof can never download a full
+  shard by accident.
+
 - **Multi-Token Prediction modules inflate reported totals** (DeepSeek V3/R1 by ~13B, GLM-4.5-Air
   by ~4B) and inference never loads them. Detected via `num_nextn_predict_layers` and _refused_,
   not estimated; the seed list carries the published figure with a written reason.
