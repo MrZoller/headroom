@@ -1527,6 +1527,10 @@ describe('pinned safetensors headers verify logical parameter totals', () => {
   it('collects every indexed tensor from its assigned shard', () => {
     const first = { 'model.embed_tokens.weight': { dtype: 'BF16', shape: [2, 3] } };
     const second = { 'model.layers.0.weight': { dtype: 'F32', shape: [3] } };
+    const headersByShard = new Map<string, Record<string, { dtype?: string; shape?: number[] }>>([
+      ['model-00001-of-00002.safetensors', first],
+      ['model-00002-of-00002.safetensors', second],
+    ]);
     expect(
       collectPinnedHeaders(
         'example/two-shards',
@@ -1534,10 +1538,7 @@ describe('pinned safetensors headers verify logical parameter totals', () => {
           'model.embed_tokens.weight': 'model-00001-of-00002.safetensors',
           'model.layers.0.weight': 'model-00002-of-00002.safetensors',
         },
-        new Map([
-          ['model-00001-of-00002.safetensors', first],
-          ['model-00002-of-00002.safetensors', second],
-        ])
+        headersByShard
       )
     ).toEqual({ ...first, ...second });
   });
