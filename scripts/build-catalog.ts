@@ -1480,12 +1480,19 @@ function deriveWindows(
  * this reconstruction path accepts either summary convention Hugging Face currently publishes.
  */
 const PACKED_DTYPES = new Set(['U8', 'UINT8', 'U4', 'I4']);
+const FP8_SCALE_SUFFIXES = [
+  '.weight_scale_inv',
+  '.activation_scale',
+  '_scale_inv',
+  '_activation_scale',
+];
 
 /**
  * Logical parameter count.
  *
  * `safetensors.total` is a sum of tensor *elements*, which equals the parameter count only for
- * formats that store one element per parameter. FP8 does; MXFP4 does not — gpt-oss-120b reports
+ * formats that store one element per parameter. FP8 weights do; their separately stored scales
+ * are reconciled against pinned headers below. MXFP4 does not — gpt-oss-120b reports
  * 118.24B U8 elements against 114.66B logical expert parameters, the extra 1/32 being one shared
  * scale byte per 32-value block. Taking the total at face value overstates the model by 3.6B and
  * puts the headline size at 120B where the vendor says 117B.
@@ -1708,6 +1715,24 @@ export function reconcileActiveParams(id: string, derived: number, published: nu
 const TOKEN = process.env.HF_TOKEN;
 const headers: Record<string, string> = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
 
+async function fetchWithBackoff(url: string, init?: RequestInit): Promise<Response> {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === MAX_ATTEMPTS) return response;
+
+    // Reading every pinned shard header adds hundreds of small requests for the largest models.
+    // The Hub occasionally rate-limits that honest workload; retry the explicit throttle only,
+    // honouring its delay when present rather than weakening any caller's status/content checks.
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const delayMs = Number.isFinite(retryAfter)
+      ? Math.min(retryAfter * 1000, 30_000)
+      : Math.min(1000 * 2 ** (attempt - 1), 30_000);
+    await response.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
 async function fetchJson<T>(url: string, what: string): Promise<T> {
   return (await fetchPage<T>(url, what)).body;
 }
@@ -1723,7 +1748,7 @@ async function fetchJson<T>(url: string, what: string): Promise<T> {
  * is both documented and stable across those updates. Following the header costs one function.
  */
 async function fetchPage<T>(url: string, what: string): Promise<{ body: T; next?: string }> {
-  const response = await fetch(url, { headers });
+  const response = await fetchWithBackoff(url, { headers });
   if (!response.ok) {
     const hint =
       response.status === 401 || response.status === 403
@@ -1787,7 +1812,9 @@ async function fetchSafetensorsHeader(
 ): Promise<Record<string, { dtype?: string; shape?: number[] }>> {
   const url = `https://huggingface.co/${id}/resolve/${revision}/${shard}`;
 
-  const lengthResponse = await fetch(url, { headers: { ...headers, Range: 'bytes=0-7' } });
+  const lengthResponse = await fetchWithBackoff(url, {
+    headers: { ...headers, Range: 'bytes=0-7' },
+  });
   // 206 specifically, not merely ok: a mirror that ignores Range answers 200 with the whole
   // shard, which on the unsharded path means buffering an entire model into memory.
   if (lengthResponse.status !== 206) {
@@ -1811,7 +1838,7 @@ async function fetchSafetensorsHeader(
     );
   }
 
-  const headerResponse = await fetch(url, {
+  const headerResponse = await fetchWithBackoff(url, {
     headers: { ...headers, Range: `bytes=8-${8 + headerLength - 1}` },
   });
   // The same 206 check as above, and it has to be repeated rather than inferred: the first
@@ -1846,16 +1873,22 @@ async function fetchSafetensorsHeader(
  *
  * `/resolve/` serves the content either way, which is why the shard reads below have always used it.
  */
-async function fetchTensorMap(id: string, revision: string): Promise<Record<string, string>> {
+interface TensorMap {
+  weightMap: Record<string, string>;
+  /** The unsharded fallback already had to read this header to construct its map. */
+  prefetchedHeaders: Map<string, Record<string, TensorHeader>>;
+}
+
+async function fetchTensorMap(id: string, revision: string): Promise<TensorMap> {
   const url = `https://huggingface.co/${id}/resolve/${revision}/model.safetensors.index.json`;
-  const response = await fetch(url, { headers });
+  const response = await fetchWithBackoff(url, { headers });
 
   if (response.ok) {
     const index = (await response.json()) as { weight_map?: Record<string, string> };
     if (!index.weight_map) {
       throw new DerivationError(`${id}: safetensors index has no weight_map`);
     }
-    return index.weight_map;
+    return { weightMap: index.weight_map, prefetchedHeaders: new Map() };
   }
   if (response.status !== 404) {
     throw new DerivationError(`${id}: HTTP ${response.status} fetching the safetensors index`);
@@ -1863,7 +1896,10 @@ async function fetchTensorMap(id: string, revision: string): Promise<Record<stri
 
   // Unsharded repo — the single file's own header is the index.
   const header = await fetchSafetensorsHeader(id, revision, 'model.safetensors');
-  return Object.fromEntries(Object.keys(header).map((name) => [name, 'model.safetensors']));
+  return {
+    weightMap: Object.fromEntries(Object.keys(header).map((name) => [name, 'model.safetensors'])),
+    prefetchedHeaders: new Map([['model.safetensors', header]]),
+  };
 }
 
 interface StackShape {
@@ -1891,9 +1927,108 @@ interface StackShape {
   duplicatedOutputParams: number;
   /** Logical routed-expert parameters proved by the pinned MXFP4 block/scale headers. */
   validatedMxfp4ExpertParams?: number;
+  /** Every tensor header read from the pinned checkpoint, for aggregate verification. */
+  pinnedHeaders: Record<string, TensorHeader>;
 }
 
 type TensorHeader = { dtype?: string; shape?: number[] };
+
+function tensorElements(id: string, name: string, tensor: TensorHeader): number {
+  if (tensor.shape === undefined) {
+    throw new DerivationError(
+      `${id}: pinned header tensor ${name} carries no shape, so its parameter count is unreadable`
+    );
+  }
+
+  let product = 1;
+  for (const dimension of tensor.shape) {
+    if (
+      !Number.isSafeInteger(dimension) ||
+      dimension <= 0 ||
+      product > Number.MAX_SAFE_INTEGER / dimension
+    ) {
+      throw new DerivationError(`${id}: pinned header tensor ${name} has an unsafe shape`);
+    }
+    product *= dimension;
+  }
+  return product;
+}
+
+/**
+ * Verify the mutable Hub aggregate against the logical count in the pinned checkpoint headers.
+ *
+ * The two FP8 repositories behind #239 store one F32 `weight_scale_inv` value per 128x128 weight
+ * block. Those values describe how to decode the weights; they are not additional model
+ * parameters. Both the suffix and dtype are required because either alone also names ordinary
+ * model tensors. Packed MXFP4 storage is handled separately: its pinned block/scale layout has
+ * already proved the logical expert count, so its U8 storage elements are replaced by that count.
+ */
+export function deriveHeaderTotalParams(
+  id: string,
+  tensors: Record<string, TensorHeader>,
+  apiSummaryTotal: number,
+  validatedMxfp4ExpertParams?: number
+): number {
+  let logical = 0;
+  let stored = 0;
+  let sawPacked = false;
+
+  for (const [name, tensor] of Object.entries(tensors)) {
+    const dtype = tensor.dtype?.toUpperCase();
+    if (!dtype) {
+      throw new DerivationError(`${id}: pinned header tensor ${name} carries no dtype`);
+    }
+    const elements = tensorElements(id, name, tensor);
+    if (stored > Number.MAX_SAFE_INTEGER - elements) {
+      throw new DerivationError(
+        `${id}: pinned header stored-element total exceeds safe integer range`
+      );
+    }
+    stored += elements;
+
+    if (PACKED_DTYPES.has(dtype)) {
+      sawPacked = true;
+      continue;
+    }
+    if (
+      (dtype === 'F32' || dtype === 'BF16') &&
+      FP8_SCALE_SUFFIXES.some((suffix) => name.endsWith(suffix))
+    ) {
+      continue;
+    }
+
+    if (logical > Number.MAX_SAFE_INTEGER - elements) {
+      throw new DerivationError(`${id}: pinned header parameter total exceeds safe integer range`);
+    }
+    logical += elements;
+  }
+
+  if (sawPacked) {
+    if (validatedMxfp4ExpertParams === undefined) {
+      throw new DerivationError(
+        `${id}: pinned headers contain packed tensors without a validated logical parameter count`
+      );
+    }
+    if (logical > Number.MAX_SAFE_INTEGER - validatedMxfp4ExpertParams) {
+      throw new DerivationError(`${id}: pinned header parameter total exceeds safe integer range`);
+    }
+    logical += validatedMxfp4ExpertParams;
+  }
+
+  // Hub has published both exact conventions for otherwise identical FP8 layouts: MiniMax and
+  // Kimi omit scale metadata today, while DeepSeek includes it; Mistral Small 4 even omits scalar
+  // scales from its dtype breakdown while retaining them in `total`. Both candidates are proved by
+  // the pinned headers, and either produces this same logical count. Any third figure is mutable
+  // metadata with no content-addressed explanation and must stop publication.
+  if (apiSummaryTotal !== logical && apiSummaryTotal !== stored) {
+    throw new DerivationError(
+      `${id}: pinned headers prove ${logical.toLocaleString('en-US')} logical parameters, but the ` +
+        `API summary reports ${apiSummaryTotal.toLocaleString('en-US')}. The summary convention ` +
+        'changed for this revision — inspect it rather than publishing mutable metadata.'
+    );
+  }
+  return logical;
+}
 
 /**
  * Prove the one MXFP4 layout the generator knows how to reconstruct.
@@ -1909,20 +2044,6 @@ export function validateMxfp4ExpertLayout(
   layers: number,
   expertParams: number
 ): number {
-  const elements = (name: string, shape: number[]) => {
-    let product = 1;
-    for (const dimension of shape) {
-      if (
-        !Number.isSafeInteger(dimension) ||
-        dimension <= 0 ||
-        product > Number.MAX_SAFE_INTEGER / dimension
-      ) {
-        throw new DerivationError(`${id}: MXFP4 tensor ${name} has an unsafe shape`);
-      }
-      product *= dimension;
-    }
-    return product;
-  };
   const pattern = /^model\.layers\.(\d+)\.mlp\.experts\.(gate_up_proj|down_proj)_(blocks|scales)$/;
   const packed = Object.entries(tensors).filter(
     ([, tensor]) => tensor.dtype && PACKED_DTYPES.has(tensor.dtype.toUpperCase())
@@ -1978,8 +2099,8 @@ export function validateMxfp4ExpertLayout(
           `${id}: MXFP4 expert projection ${key} does not pair 16-byte blocks with one scale each`
         );
       }
-      const blockBytes = elements(`${key}_blocks`, blockShape);
-      const scales = elements(`${key}_scales`, scaleShape);
+      const blockBytes = tensorElements(id, `${key}_blocks`, { shape: blockShape });
+      const scales = tensorElements(id, `${key}_scales`, { shape: scaleShape });
       if (blockBytes * 2 !== scales * 32) {
         throw new DerivationError(`${id}: MXFP4 expert projection ${key} has inconsistent packing`);
       }
@@ -2067,16 +2188,55 @@ async function deriveStackShape(
   expertParams: number,
   quantMethod: unknown
 ): Promise<StackShape> {
-  const weightMap = await fetchTensorMap(id, revision);
+  const { weightMap, prefetchedHeaders } = await fetchTensorMap(id, revision);
   const names = Object.keys(weightMap);
+
+  // Read every unique shard exactly once. Besides making the aggregate content-addressed, this
+  // cache lets the tie, tower, and MXFP4 checks below reuse the same pinned evidence instead of
+  // multiplying range requests for the repositories where those concerns share a shard.
+  const headersByShard = prefetchedHeaders;
+  const missingShards = [...new Set(Object.values(weightMap))].filter(
+    (shard) => !headersByShard.has(shard)
+  );
+  // DeepSeek carries 163 shards. Serial range reads turn the content proof into a half-hour model
+  // fetch, while launching all 326 requests at once is hostile to the Hub and prone to throttling.
+  // Four keeps the catalog bounded and makes the all-header check practical in the weekly job.
+  const HEADER_CONCURRENCY = 4;
+  for (let offset = 0; offset < missingShards.length; offset += HEADER_CONCURRENCY) {
+    const batch = missingShards.slice(offset, offset + HEADER_CONCURRENCY);
+    const fetched = await Promise.all(
+      batch.map(
+        async (shard) => [shard, await fetchSafetensorsHeader(id, revision, shard)] as const
+      )
+    );
+    for (const [shard, header] of fetched) headersByShard.set(shard, header);
+  }
+
+  const pinnedHeaders: Record<string, TensorHeader> = {};
+  for (const [shard, shardHeaders] of headersByShard) {
+    for (const [name, tensor] of Object.entries(shardHeaders)) {
+      if (weightMap[name] !== shard) {
+        throw new DerivationError(
+          `${id}: pinned shard ${shard} contains ${name}, but the index assigns it to ` +
+            `${weightMap[name] ?? 'no shard'}`
+        );
+      }
+      if (pinnedHeaders[name] !== undefined) {
+        throw new DerivationError(`${id}: pinned tensor ${name} appears in more than one shard`);
+      }
+      pinnedHeaders[name] = tensor;
+    }
+  }
+  const missing = names.find((name) => pinnedHeaders[name] === undefined);
+  if (missing !== undefined) {
+    throw new DerivationError(
+      `${id}: safetensors index assigns ${missing} to ${weightMap[missing]}, but that header omits it`
+    );
+  }
 
   let validatedMxfp4ExpertParams: number | undefined;
   if (quantMethod === 'mxfp4') {
-    const tensors: Record<string, TensorHeader> = {};
-    for (const shard of new Set(Object.values(weightMap))) {
-      Object.assign(tensors, await fetchSafetensorsHeader(id, revision, shard));
-    }
-    validatedMxfp4ExpertParams = validateMxfp4ExpertLayout(id, tensors, layers, expertParams);
+    validatedMxfp4ExpertParams = validateMxfp4ExpertLayout(id, pinnedHeaders, layers, expertParams);
   }
 
   const unknown = names.filter((name) => classifyTensor(name) === 'unknown');
@@ -2131,7 +2291,8 @@ async function deriveStackShape(
     // Measured from the shard rather than assumed to be vocab x hidden: the whole point of the
     // subtraction is that it is a real tensor with a real size. `duplicatedOutputParams` checks it
     // against the embedding table and refuses the shapes that cannot settle the question.
-    const header = await fetchSafetensorsHeader(id, revision, weightMap[outputHead]);
+    const header = headersByShard.get(weightMap[outputHead]);
+    if (!header) throw new DerivationError(`${id}: no pinned header for ${weightMap[outputHead]}`);
     duplicated = duplicatedOutputParams(id, outputHead, header, embeddingParams);
   }
 
@@ -2144,12 +2305,14 @@ async function deriveStackShape(
       nonLanguageParams: 0,
       duplicatedOutputParams: duplicated,
       validatedMxfp4ExpertParams,
+      pinnedHeaders,
     };
   }
 
   let nonLanguageParams = 0;
   for (const shard of otherShards) {
-    const header = await fetchSafetensorsHeader(id, revision, shard);
+    const header = headersByShard.get(shard);
+    if (!header) throw new DerivationError(`${id}: no pinned header for ${shard}`);
     for (const [name, tensor] of Object.entries(header)) {
       if (classifyTensor(name) !== 'other') continue;
       if (tensor.dtype && PACKED_DTYPES.has(tensor.dtype.toUpperCase())) {
@@ -2178,6 +2341,7 @@ async function deriveStackShape(
     nonLanguageParams,
     duplicatedOutputParams: duplicated,
     validatedMxfp4ExpertParams,
+    pinnedHeaders,
   };
 }
 
@@ -2227,7 +2391,7 @@ async function buildModel(seed: Seed) {
   /**
    * The attention stack is settled here, before anything that touches the network again, and the
    * order is load-bearing rather than tidy. These two read `config.json` alone; `deriveStackShape`
-   * below fetches a safetensors index and one header per non-language shard.
+   * below fetches a safetensors index and every pinned shard header.
    *
    * Qwen3-Next is why. It ships an MTP module under an `mtp.` prefix, so run in the other order the
    * seed is refused for 1,553 unclassified tensors — a true statement about a different problem,
@@ -2293,10 +2457,20 @@ async function buildModel(seed: Seed) {
    * duplicate-table subtraction applies only to a count derived from the index. Applying both would
    * take 0.41B off a number a vendor stated.
    */
+  const apiTotalParams = deriveTotalParams(
+    seed.id,
+    api,
+    expertParams,
+    stack.validatedMxfp4ExpertParams
+  );
+  const headerTotalParams = deriveHeaderTotalParams(
+    seed.id,
+    stack.pinnedHeaders,
+    apiTotalParams,
+    stack.validatedMxfp4ExpertParams
+  );
   const totalParams =
-    seed.overrides?.totalParams ??
-    deriveTotalParams(seed.id, api, expertParams, stack.validatedMxfp4ExpertParams) -
-      stack.duplicatedOutputParams;
+    seed.overrides?.totalParams ?? headerTotalParams - stack.duplicatedOutputParams;
 
   if (expertParams >= totalParams) {
     throw new DerivationError(
