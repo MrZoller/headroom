@@ -19,7 +19,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
   - pr: 230
-- [ ] T15 (standard) — catalog: verify parameter totals against the pinned safetensors headers, not only the mutable API summary (Fixes #239)
+- [~] T15 (standard) — catalog: verify parameter totals against the pinned safetensors headers, not only the mutable API summary (Fixes #239)
   - acceptance: `scripts/build-catalog.ts` derives logical tensor totals for every seed from the pinned safetensors index and shard headers, excluding scale tensors by name and dtype, and compares them with the Hugging Face API summary; agreement publishes while disagreement throws a `DerivationError` naming both figures; `scripts/build-catalog.test.ts` covers same-revision summary drift, `npm run catalog` remains byte-identical where headers and summary agree, and the existing llama.cpp-size and DeepSeek-KV reference tests pass
 
 ## Risks
