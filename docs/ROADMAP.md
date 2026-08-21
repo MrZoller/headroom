@@ -1029,10 +1029,12 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   product. A red run is the intended outcome of a bad fetch.
 - **The whole gate runs inside the refresh job, before the PR is opened.** Verification is a
   publication precondition, not delegated to the PR: a new model with an attention shape the engine
-  cannot price must never reach the refresh branch. Publication uses a short-lived installation
-  token from the repo-only `headroom-catalog-publisher` App because GitHub suppresses workflow
-  events caused by `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the
-  ordinary CI workflows. The workflow's own token remains read-only, while the
+  cannot price must never reach the refresh branch. The job selects current `main` before installing
+  dependencies, so its lockfile, generation, verification, and publication base all come from the
+  same commit. Publication uses a short-lived installation token from the repo-only
+  `headroom-catalog-publisher` App because GitHub suppresses workflow events caused by
+  `GITHUB_TOKEN`; App-authored PR creation and refresh pushes therefore trigger the ordinary CI
+  workflows. The workflow's own token remains read-only, while the
   installation token explicitly narrows the App's Contents and Pull requests grants to read/write
   for this repository and is revoked when the job ends.
 
@@ -1046,12 +1048,13 @@ nonsense. Four things about it are easy to get wrong and are already wrong once 
   is open on it** (#193). Committing on top preserves review already left on an open PR, which is
   the one thing the job exists to invite. With no open PR there is no review to preserve and the
   branch is nothing but the last run that failed to publish, so building on it carries an
-  ever-older base forward. One `gh pr list --head … --base main --state open` answers both that and
-  the create-versus-edit question at the end; asking twice would let a PR merged mid-run make the
-  two halves disagree silently. Backed by a guard that runs before the push: the branch's diff
-  against `main` must be exactly `models.generated.json` or the job fails and pushes nothing,
-  which is why the checkout is `fetch-depth: 0` — the diff is asked from the merge base, and a
-  shallow clone has none.
+  ever-older base forward. An initial `gh pr list --head … --base main --state open` snapshot makes
+  that preserve-versus-reset decision. After the push, the job deliberately queries again before
+  choosing `gh pr edit` or `gh pr create`: the original PR may have closed or merged while the run
+  generated and verified its commit, and editing that stale snapshot would strand the new head.
+  Backed by a guard that runs before the push, the branch's diff against `main` must be exactly
+  `models.generated.json` or the job fails and pushes nothing, which is why the checkout is
+  `fetch-depth: 0` — the diff is asked from the merge base, and a shallow clone has none.
 
 The publication path was verified live in both directions in August 2026. Manual
 [run 31913354836](https://github.com/MrZoller/headroom/actions/runs/31913354836) rebuilt the stale
