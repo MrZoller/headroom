@@ -4,6 +4,7 @@ import {
   NOT_SEEDED,
   SEEDS,
   assertOneBoundedWindow,
+  collectPinnedHeaders,
   deriveAttention,
   deriveHeaderTotalParams,
   deriveLayerWindows,
@@ -12,6 +13,7 @@ import {
   duplicatedOutputParams,
   publishedActiveParams,
   reconcileActiveParams,
+  retryDelayMs,
   seededIds,
   staleRefusals,
   unseededCandidates,
@@ -1502,6 +1504,99 @@ describe('pinned safetensors headers verify logical parameter totals', () => {
     expect(() =>
       deriveHeaderTotalParams('MiniMaxAI/MiniMax-M2.7', PINNED_FP8_HEADERS, STORED_TOTAL + 1)
     ).toThrowError(/pinned headers.*16[,_]?512.*API summary.*16[,_]?514/i);
+  });
+
+  it.each([
+    ['no Retry-After header', null],
+    ['an empty Retry-After header', ''],
+    ['a non-positive Retry-After header', '0'],
+  ])('falls back to exponential retry delay for %s', (_, retryAfter) => {
+    expect(retryDelayMs(retryAfter, 3)).toBe(4_000);
+  });
+
+  it('honours positive numeric Retry-After delays up to the retry cap', () => {
+    expect(retryDelayMs('1.5', 1)).toBe(1_500);
+    expect(retryDelayMs('31', 1)).toBe(30_000);
+  });
+
+  it('honours a future HTTP-date Retry-After against the injected clock', () => {
+    const now = Date.parse('2026-08-20T12:00:00Z');
+    expect(retryDelayMs('Thu, 20 Aug 2026 12:00:05 GMT', 1, now)).toBe(5_000);
+  });
+
+  it('collects every indexed tensor from its assigned shard', () => {
+    const first = { 'model.embed_tokens.weight': { dtype: 'BF16', shape: [2, 3] } };
+    const second = { 'model.layers.0.weight': { dtype: 'F32', shape: [3] } };
+    expect(
+      collectPinnedHeaders(
+        'example/two-shards',
+        {
+          'model.embed_tokens.weight': 'model-00001-of-00002.safetensors',
+          'model.layers.0.weight': 'model-00002-of-00002.safetensors',
+        },
+        new Map([
+          ['model-00001-of-00002.safetensors', first],
+          ['model-00002-of-00002.safetensors', second],
+        ])
+      )
+    ).toEqual({ ...first, ...second });
+  });
+
+  it('refuses a tensor in a shard other than the index assigns', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/wrong-shard',
+        { 'model.weight': 'model-00001-of-00002.safetensors' },
+        new Map([
+          ['model-00002-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+        ])
+      )
+    ).toThrowError(/contains model\.weight, but the index assigns it to model-00001-of-00002/);
+  });
+
+  it('refuses a tensor repeated across shards', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/duplicate',
+        { 'model.weight': 'model-00001-of-00002.safetensors' },
+        new Map([
+          ['model-00001-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+          ['model-00002-of-00002.safetensors', { 'model.weight': { dtype: 'BF16', shape: [2] } }],
+        ])
+      )
+    ).toThrowError(/pinned tensor model\.weight appears in more than one shard/);
+  });
+
+  it('refuses an index tensor its assigned header omits', () => {
+    expect(() =>
+      collectPinnedHeaders(
+        'example/missing-header',
+        {
+          'model.present': 'model.safetensors',
+          'model.absent': 'model.safetensors',
+        },
+        new Map([['model.safetensors', { 'model.present': { dtype: 'BF16', shape: [2] } }]])
+      )
+    ).toThrowError(/index assigns model\.absent to model\.safetensors, but that header omits it/);
+  });
+
+  it('refuses unreadable header fields and unsafe total accumulation', () => {
+    expect(() =>
+      deriveHeaderTotalParams('example/no-dtype', { 'model.weight': { shape: [1] } }, 1)
+    ).toThrowError(/model\.weight carries no dtype/);
+    expect(() =>
+      deriveHeaderTotalParams('example/no-shape', { 'model.weight': { dtype: 'BF16' } }, 1)
+    ).toThrowError(/model\.weight carries no shape/);
+    expect(() =>
+      deriveHeaderTotalParams(
+        'example/unsafe-total',
+        {
+          'model.first': { dtype: 'BF16', shape: [Number.MAX_SAFE_INTEGER] },
+          'model.second': { dtype: 'BF16', shape: [1] },
+        },
+        Number.MAX_SAFE_INTEGER
+      )
+    ).toThrowError(/stored-element total exceeds safe integer range/);
   });
 });
 

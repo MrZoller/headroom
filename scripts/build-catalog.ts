@@ -1715,6 +1715,17 @@ export function reconcileActiveParams(id: string, derived: number, published: nu
 const TOKEN = process.env.HF_TOKEN;
 const headers: Record<string, string> = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
 
+export function retryDelayMs(retryAfter: string | null, attempt: number, now = Date.now()): number {
+  if (retryAfter !== null) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.min(seconds * 1000, 30_000);
+
+    const at = Date.parse(retryAfter);
+    if (Number.isFinite(at) && at > now) return Math.min(at - now, 30_000);
+  }
+  return Math.min(1000 * 2 ** (attempt - 1), 30_000);
+}
+
 async function fetchWithBackoff(url: string, init?: RequestInit): Promise<Response> {
   const MAX_ATTEMPTS = 5;
   for (let attempt = 1; ; attempt += 1) {
@@ -1724,10 +1735,7 @@ async function fetchWithBackoff(url: string, init?: RequestInit): Promise<Respon
     // Reading every pinned shard header adds hundreds of small requests for the largest models.
     // The Hub occasionally rate-limits that honest workload; retry the explicit throttle only,
     // honouring its delay when present rather than weakening any caller's status/content checks.
-    const retryAfter = Number(response.headers.get('retry-after'));
-    const delayMs = Number.isFinite(retryAfter)
-      ? Math.min(retryAfter * 1000, 30_000)
-      : Math.min(1000 * 2 ** (attempt - 1), 30_000);
+    const delayMs = retryDelayMs(response.headers.get('retry-after'), attempt);
     await response.body?.cancel();
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
@@ -1932,6 +1940,35 @@ interface StackShape {
 }
 
 type TensorHeader = { dtype?: string; shape?: number[] };
+
+export function collectPinnedHeaders(
+  id: string,
+  weightMap: Record<string, string>,
+  headersByShard: Map<string, Record<string, TensorHeader>>
+): Record<string, TensorHeader> {
+  const pinnedHeaders: Record<string, TensorHeader> = {};
+  for (const [shard, shardHeaders] of headersByShard) {
+    for (const [name, tensor] of Object.entries(shardHeaders)) {
+      if (pinnedHeaders[name] !== undefined) {
+        throw new DerivationError(`${id}: pinned tensor ${name} appears in more than one shard`);
+      }
+      if (weightMap[name] !== shard) {
+        throw new DerivationError(
+          `${id}: pinned shard ${shard} contains ${name}, but the index assigns it to ` +
+            `${weightMap[name] ?? 'no shard'}`
+        );
+      }
+      pinnedHeaders[name] = tensor;
+    }
+  }
+  const missing = Object.keys(weightMap).find((name) => pinnedHeaders[name] === undefined);
+  if (missing !== undefined) {
+    throw new DerivationError(
+      `${id}: safetensors index assigns ${missing} to ${weightMap[missing]}, but that header omits it`
+    );
+  }
+  return pinnedHeaders;
+}
 
 function tensorElements(id: string, name: string, tensor: TensorHeader): number {
   if (tensor.shape === undefined) {
@@ -2212,27 +2249,7 @@ async function deriveStackShape(
     for (const [shard, header] of fetched) headersByShard.set(shard, header);
   }
 
-  const pinnedHeaders: Record<string, TensorHeader> = {};
-  for (const [shard, shardHeaders] of headersByShard) {
-    for (const [name, tensor] of Object.entries(shardHeaders)) {
-      if (weightMap[name] !== shard) {
-        throw new DerivationError(
-          `${id}: pinned shard ${shard} contains ${name}, but the index assigns it to ` +
-            `${weightMap[name] ?? 'no shard'}`
-        );
-      }
-      if (pinnedHeaders[name] !== undefined) {
-        throw new DerivationError(`${id}: pinned tensor ${name} appears in more than one shard`);
-      }
-      pinnedHeaders[name] = tensor;
-    }
-  }
-  const missing = names.find((name) => pinnedHeaders[name] === undefined);
-  if (missing !== undefined) {
-    throw new DerivationError(
-      `${id}: safetensors index assigns ${missing} to ${weightMap[missing]}, but that header omits it`
-    );
-  }
+  const pinnedHeaders = collectPinnedHeaders(id, weightMap, headersByShard);
 
   let validatedMxfp4ExpertParams: number | undefined;
   if (quantMethod === 'mxfp4') {
