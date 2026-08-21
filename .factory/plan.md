@@ -15,6 +15,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 - [x] T12 (standard) — Catalog-refresh PRs never trigger the Claude review workflow (Fixes #215)
   - acceptance: catalog PR creation and later refresh pushes trigger Claude review for the opened and synchronized heads; `.github/workflows/catalog-refresh.yml` and `.github/workflows/claude-code-review.yml` retain their existing fork, draft, Dependabot, and least-privilege safeguards; live workflow evidence verifies both creation and update paths and `docs/ROADMAP.md` records the resulting publication/review contract
   - pr: 236
+  - note: shipped and owner-merged 2026-08-18 as PR #236 (short-lived repo App token for publication, publisher-bot review allowlist); the Claude review workflow it targeted was then retired 2026-08-19 by #237 for a credential-exposure hole (MrZoller/opencode-factory#48), so its review trigger now has no consumer while the least-privilege publication path stays in force. Origin's copy of this plan briefly read "(dropped …)" — written from a clone that lacked this then-unpushed completion bookkeeping; this line is the statement of record.
 - [x] T13 (standard) — Reopened #193: catalog refresh: the weekly PR never opens, so fresh figures strand on a branch (Fixes #193)
   - acceptance: repository workflow defaults remain read-only while Actions PR creation stays enabled; a substantive manual or scheduled refresh opens or updates a non-destructive `catalog/refresh` PR based on current `main`, and live run plus three-dot-diff evidence records that fresh figures are published rather than stranded
   - pr: 230
@@ -23,7 +24,7 @@ Treat the open GitHub issue tracker as the external specification and import one
 
 - T10 changes performance estimates across every partially offloaded llama.cpp placement; if the placement data cannot identify the host-resident KV fraction without changing the engine contract, stop and ask rather than approximate it from unrelated bytes.
 - T11 must test responsive visibility in Playwright rather than treating jsdom text presence as layout evidence.
-- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision.
+- T12 crosses a privileged workflow boundary; if neither a narrowly scoped non-suppressed credential nor a trusted two-stage workflow can preserve current untrusted-PR safeguards, stop for a security design decision. **This risk materialised (2026-08-19).** The safeguards could not be preserved: the workflow's own definition was PR-controlled, so no containment written inside it held. The workflow was removed rather than fixed (#237); T12 had already merged as #236 the day before, so it stands complete with its review premise retired. The security design decision the risk called for is open at MrZoller/opencode-factory#48.
 - T13 represents an open issue already covered by factory-completed T3; per the reopen rule its new task must assess the issue's current state without reviving or rewriting T3's shipped merge.
 
 ## Ad-hoc
@@ -66,7 +67,7 @@ those gates literally.)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - pr: 231
-- [!] T14 (trivial) — parked review minors (batch)
+- [ ] T14 (trivial) — parked review minors (batch) — released 2026-08-20: Chris asked to work through the backlog; the batch drains with it (the human-asking drain trigger, as with T9's 2026-08-17 release)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - (moved from completed T9's record 2026-08-17 — they were parked there after its merge; the rolling batch re-seeds here since re-sync never does)
