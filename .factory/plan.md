@@ -67,7 +67,7 @@ those gates literally.)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - pr: 231
-- [ ] T14 (trivial) — parked review minors (batch) — released 2026-08-20: Chris asked to work through the backlog; the batch drains with it (the human-asking drain trigger, as with T9's 2026-08-17 release)
+- [~] T14 (trivial) — parked review minors (batch) — released 2026-08-20: Chris asked to work through the backlog; the batch drains with it (the human-asking drain trigger, as with T9's 2026-08-17 release)
   - Select the current `main` checkout before installing dependencies in catalog refresh, so catalog generation cannot use current-main source with stale dependencies. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405985)
   - Update the catalog-refresh deployment contract for the post-publication PR-query revalidation. [PR #231](https://github.com/MrZoller/headroom/pull/231#discussion_r3799405992)
   - (moved from completed T9's record 2026-08-17 — they were parked there after its merge; the rolling batch re-seeds here since re-sync never does)
