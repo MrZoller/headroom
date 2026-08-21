@@ -57,6 +57,14 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.publisher-token.outputs.token }}
 
+      # Pin dependency installation, generation, verification, and publication to the same current
+      # `main` commit. Selecting it after `npm ci` could combine current-main source with the lockfile
+      # and installed dependencies from the workflow's older triggering checkout.
+      - name: Select the current main base
+        run: |
+          git fetch origin main
+          git checkout --detach origin/main
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -65,14 +73,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      # Pin the generation checkout and the publication base to the same current `main` commit.
-      # Fetching later would let `main` move between generation/verification and branch creation,
-      # pairing figures tested against one checkout with a refresh branch based on another.
-      - name: Select the current main base
-        run: |
-          git fetch origin main
-          git checkout --detach origin/main
 
       # Kept before the regeneration overwrites it, since the comparison below needs both.
       - name: Keep the committed catalog
