@@ -40,10 +40,9 @@ Everything inside the repository says so as of 3 August 2026 — package name, w
 the live URL it advertises, and every `github.com/MrZoller/…` link outside `CHANGELOG.md`, whose
 entries are history and were left alone. What was left — a repository rename and one repository
 variable, **in that order**, neither in the pull request — is done as of August 2026:
-`MrZoller/bench` became
-`MrZoller/headroom`, `PAGES_BASE_PATH` followed it to `/headroom/`, and on 21 August 2026 the custom
-domain returned it to `/`. **Deployment**, below, is where the order and the window between the
-steps are written down.
+`MrZoller/bench` became `MrZoller/headroom`, `PAGES_BASE_PATH` followed it to `/headroom/`, and on
+21 August 2026 the custom domain returned it to `/`. **Deployment**, below, is where the order and
+the window between the steps are written down.
 
 **Lowercase `headroom` was left alone everywhere, and that is the rule rather than an oversight.**
 It is a real quantity in this codebase — leftover VRAM, the margin over a threshold, the slack in a
