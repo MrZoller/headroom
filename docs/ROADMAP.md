@@ -1193,10 +1193,10 @@ it the same way as the first deploy: the served HTML references `/assets/…` an
 `<loc>`s on it, an unknown path answers 404, `/rtx-5090` redirects to `/rtx-5090/`, and
 `mrzoller.github.io/headroom/rtx-5090/` 301s to `headroom.zoller.ai/rtx-5090/`. Let's Encrypt issued
 the certificate within minutes and _Enforce HTTPS_ is on; the repository's homepage field points at
-the domain. **One thing is not done:** the domain is not verified at the account level
-(Settings → Pages → Verified domains), which is a TXT record in the `zoller.ai` zone and is what
-stops a dangling `*.zoller.ai` CNAME from being claimed by somebody else's Pages site. Worth doing;
-it needs the Cloudflare dashboard rather than this repository.
+the domain. The domain is also verified at the account level (Settings → Pages → Verified domains —
+a `_github-pages-challenge-MrZoller` TXT record in the `zoller.ai` zone, and Pages reports
+`protected_domain_state: verified`), which is what stops a dangling `*.zoller.ai` CNAME from being
+claimed by somebody else's Pages site.
 
 ## Decisions already made
 
@@ -3029,11 +3029,6 @@ Two of the findings were not about the prose at all. They are defects the prose 
   naming decision this entry said it was, and the move was what it predicted plus one variable —
   `PAGES_CUSTOM_DOMAIN`, `PAGES_BASE_PATH` back to `/`, and `PAGES_SITE_ORIGIN`, all together — and
   one CNAME record, in the order recorded under **Deployment**.
-- **Account-level domain verification** on zoller.ai. The one piece of the domain move not done: a
-  TXT record in the `zoller.ai` zone (Settings → Pages → Verified domains) that verifies the domain
-  for the account and stops a dangling `*.zoller.ai` CNAME from being claimed by somebody else's
-  Pages site. It needs the Cloudflare dashboard rather than this repository, which is why it is
-  here and not in a commit.
 
 ## Verification
 
