@@ -87,8 +87,8 @@ jobs:
 
       # A `CNAME` in the published directory is what tells Pages to answer on a custom domain, and
       # it has to be re-uploaded with every deploy or the domain is dropped. Kept as a variable
-      # rather than a committed file so the subdomain — still undecided — is one setting rather
-      # than a commit, and so a fork does not inherit a domain it cannot serve.
+      # rather than a committed file so the domain (`headroom.zoller.ai` since 21 August 2026) is
+      # one setting rather than a commit, and so a fork does not inherit a domain it cannot serve.
       - name: Claim the custom domain, if one is configured
         if: vars.PAGES_CUSTOM_DOMAIN != ''
         run: echo "${{ vars.PAGES_CUSTOM_DOMAIN }}" > dist/CNAME

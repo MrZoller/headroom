@@ -28,19 +28,21 @@ Three things are the moat, in order:
 
 ## Status
 
-**All eight phases are done, and the site is live** at
-<https://mrzoller.github.io/bench/> as of 28 July 2026, and at
-<https://mrzoller.github.io/headroom/> once the rename below lands. The repository went public to
-get there — Pages is not available on a private repo without a paid plan — which also restored the
-branch ruleset that had been convention rather than enforcement since the start.
+**All eight phases are done, and the site is live** at <https://headroom.zoller.ai/> as of
+21 August 2026 — on GitHub Pages since 28 July 2026, first at `mrzoller.github.io/bench/` and then
+at `mrzoller.github.io/headroom/` after the rename below; both now redirect to the domain with the
+path kept. The repository went public to get there — Pages is not available on a private repo
+without a paid plan — which also restored the branch ruleset that had been convention rather than
+enforcement since the start.
 
 **The project is Headroom now, and the half that is not in any commit is what to watch** (#176).
 Everything inside the repository says so as of 3 August 2026 — package name, wordmark, page title,
 the live URL it advertises, and every `github.com/MrZoller/…` link outside `CHANGELOG.md`, whose
-entries are history and were left alone. What is left is a repository rename and one repository
-variable, **in that order**, and neither is in the pull request: the URL above answers only once
-`MrZoller/bench` has become `MrZoller/headroom`. **Deployment**, below, is where the order and the
-window between the two steps are written down.
+entries are history and were left alone. What was left — a repository rename and one repository
+variable, **in that order**, neither in the pull request — is done as of August 2026:
+`MrZoller/bench` became `MrZoller/headroom`, `PAGES_BASE_PATH` followed it to `/headroom/`, and on
+21 August 2026 the custom domain returned it to `/`. **Deployment**, below, is where the order and
+the window between the steps are written down.
 
 **Lowercase `headroom` was left alone everywhere, and that is the rule rather than an oversight.**
 It is a real quantity in this codebase — leftover VRAM, the margin over a threshold, the slack in a
@@ -59,7 +61,7 @@ for recommend, #168 for detect, #169 for calibrate — and what each turned out 
 two more (#180, #181) came out of reviewing _this section_ a day later; they are in **Open
 questions**, and two of the first six share one root.
 
-What remains is a naming decision, **one open issue, and it is work** — the six filed
+What remains is **one open issue, and it is work** — the six filed
 during the pass, less [#165](https://github.com/MrZoller/headroom/issues/165),
 [#166](https://github.com/MrZoller/headroom/issues/166),
 [#170](https://github.com/MrZoller/headroom/issues/170),
@@ -77,9 +79,10 @@ record of a decision already made rather than as a task. What remains is
 mapping duplicated between `Calibrate.tsx` and `launch.ts` under a comment saying the two must be
 merged once both land, and the emitted `llama-bench` command asking for `-o md` while the parser
 prefers JSON. Both are described under **Calibrate**, below, and both are named here because a
-handoff summary that enumerates reads as a complete inventory. The
-naming decision is the smallest of the three: the site serves from the Pages project URL, and a
-zoller.ai subdomain is one repository variable away. See **Deployment**, below.
+handoff summary that enumerates reads as a complete inventory. The naming decision is settled: the
+site serves from <https://headroom.zoller.ai/> as of 21 August 2026, and what that took — one DNS
+record, three repository variables and one Pages setting, in that order — is under **Deployment**,
+below.
 
 | Phase                              | State             | Notes                                                                                                |
 | ---------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
@@ -1157,7 +1160,8 @@ invented. Setting it is what turns both absolute, and it is also what decides wh
 writes no sitemap rather than an invalid one. It moves together with `PAGES_CUSTOM_DOMAIN` and
 `PAGES_BASE_PATH` — a custom domain means all three change at once.
 
-`PAGES_BASE_PATH` holds the repo's own name, because a Pages _project_ site serves from it.
+`PAGES_BASE_PATH` held the repo's own name until 21 August 2026, because a Pages _project_ site
+serves from it.
 Attaching a custom domain means setting `PAGES_CUSTOM_DOMAIN` **and** returning `PAGES_BASE_PATH`
 to `/` — changing one without the other is the failure mode this pair exists to make visible, since
 a wrong `base` produces a blank page with 404s in the console rather than a build error. Verified
@@ -1172,6 +1176,27 @@ repository to `MrZoller/headroom`, then set `PAGES_BASE_PATH` to `/headroom/`. B
 step and the third the site is built for `/bench/` and served from `/headroom/`, which is the blank
 page with 404s described above — the window is one settings change wide, and it is the reason the
 repo rename is not part of the pull request that renames everything else.
+
+**The custom domain landed on 21 August 2026, in the order the paragraph above prescribes.**
+`zoller.ai` is on Cloudflare DNS, so the record is one `CNAME headroom → mrzoller.github.io` there,
+**DNS-only** (grey cloud) rather than proxied: a proxied record answers with Cloudflare's own
+addresses, which hides the CNAME from GitHub's domain check and stalls certificate issuance, and a
+static site that Pages already serves from a CDN gains nothing from a second one in front. DNS came
+first, deliberately — attaching the domain makes GitHub redirect the project URL to it at once, so a
+domain that does not yet resolve takes the old address down with it. With the record resolving, the
+three variables changed together (`PAGES_BASE_PATH` back to `/`, `PAGES_SITE_ORIGIN` to
+`https://headroom.zoller.ai`, `PAGES_CUSTOM_DOMAIN` to `headroom.zoller.ai`), then
+`PUT /repos/MrZoller/headroom/pages` with the `cname`, then `deploy.yml` was dispatched by hand
+([run 32543481076](https://github.com/MrZoller/headroom/actions/runs/32543481076)). Verified after
+it the same way as the first deploy: the served HTML references `/assets/…` and the asset returns
+200, every prerendered page's canonical and `og:url` carry the new origin, `sitemap.xml` lists 188
+`<loc>`s on it, an unknown path answers 404, `/rtx-5090` redirects to `/rtx-5090/`, and
+`mrzoller.github.io/headroom/rtx-5090/` 301s to `headroom.zoller.ai/rtx-5090/`. Let's Encrypt issued
+the certificate within minutes and _Enforce HTTPS_ is on; the repository's homepage field points at
+the domain. The domain is also verified at the account level (Settings → Pages → Verified domains —
+a `_github-pages-challenge-MrZoller` TXT record in the `zoller.ai` zone, and Pages reports
+`protected_domain_state: verified`), which is what stops a dangling `*.zoller.ai` CNAME from being
+claimed by somebody else's Pages site.
 
 ## Decisions already made
 
@@ -3000,11 +3025,10 @@ Two of the findings were not about the prose at all. They are defects the prose 
   is for specs that are uncertain, not for arithmetic the curator cannot close. MI325X went in
   because AMD publishes it as a part.
 
-- **Final subdomain** on zoller.ai. The only thing genuinely left, and it is a naming decision
-  rather than work: the site is live at the Pages project URL, and moving it is two repository
-  variables — `PAGES_CUSTOM_DOMAIN` to the chosen host and `PAGES_BASE_PATH` back to `/` — plus a
-  CNAME record. Both variables have to change together, which is why they are documented as a pair
-  above.
+- ~~Final subdomain on zoller.ai.~~ **Settled, 21 August 2026: `headroom.zoller.ai`.** It was the
+  naming decision this entry said it was, and the move was what it predicted plus one variable —
+  `PAGES_CUSTOM_DOMAIN`, `PAGES_BASE_PATH` back to `/`, and `PAGES_SITE_ORIGIN`, all together — and
+  one CNAME record, in the order recorded under **Deployment**.
 
 ## Verification
 
