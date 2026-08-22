@@ -38,10 +38,12 @@ enforcement since the start.
 **The project is Headroom now, and the half that is not in any commit is what to watch** (#176).
 Everything inside the repository says so as of 3 August 2026 — package name, wordmark, page title,
 the live URL it advertises, and every `github.com/MrZoller/…` link outside `CHANGELOG.md`, whose
-entries are history and were left alone. What is left is a repository rename and one repository
-variable, **in that order**, and neither is in the pull request: the URL above answers only once
-`MrZoller/bench` has become `MrZoller/headroom`. **Deployment**, below, is where the order and the
-window between the two steps are written down.
+entries are history and were left alone. What was left — a repository rename and one repository
+variable, **in that order**, neither in the pull request — is done as of August 2026:
+`MrZoller/bench` became
+`MrZoller/headroom`, `PAGES_BASE_PATH` followed it to `/headroom/`, and on 21 August 2026 the custom
+domain returned it to `/`. **Deployment**, below, is where the order and the window between the
+steps are written down.
 
 **Lowercase `headroom` was left alone everywhere, and that is the rule rather than an oversight.**
 It is a real quantity in this codebase — leftover VRAM, the margin over a threshold, the slack in a
@@ -3024,11 +3026,15 @@ Two of the findings were not about the prose at all. They are defects the prose 
   is for specs that are uncertain, not for arithmetic the curator cannot close. MI325X went in
   because AMD publishes it as a part.
 
-- **Final subdomain** on zoller.ai. The only thing genuinely left, and it is a naming decision
-  rather than work: the site is live at the Pages project URL, and moving it is two repository
-  variables — `PAGES_CUSTOM_DOMAIN` to the chosen host and `PAGES_BASE_PATH` back to `/` — plus a
-  CNAME record. Both variables have to change together, which is why they are documented as a pair
-  above.
+- ~~Final subdomain on zoller.ai.~~ **Settled, 21 August 2026: `headroom.zoller.ai`.** It was the
+  naming decision this entry said it was, and the move was what it predicted plus one variable —
+  `PAGES_CUSTOM_DOMAIN`, `PAGES_BASE_PATH` back to `/`, and `PAGES_SITE_ORIGIN`, all together — and
+  one CNAME record, in the order recorded under **Deployment**.
+- **Account-level domain verification** on zoller.ai. The one piece of the domain move not done: a
+  TXT record in the `zoller.ai` zone (Settings → Pages → Verified domains) that verifies the domain
+  for the account and stops a dangling `*.zoller.ai` CNAME from being claimed by somebody else's
+  Pages site. It needs the Cloudflare dashboard rather than this repository, which is why it is
+  here and not in a commit.
 
 ## Verification
 
