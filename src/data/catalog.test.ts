@@ -1071,7 +1071,11 @@ describe('generated model catalog', () => {
   ])('%s takes its popularity from the canonical repo', (id, canonical) => {
     const model = getModel(id);
     expect(model.popularity?.measuredOn).toBe(canonical);
-    expect(model.popularity?.downloads ?? 0).toBeGreaterThan(500_000);
+    // The floor only has to separate canonical traffic (hundreds of thousands) from mirror
+    // traffic (tens of thousands). Downloads are a rolling 30-day window, so canonical counts
+    // decay as a model ages — Gemma 3's fell under the old 500K floor within five weeks of
+    // seeding.
+    expect(model.popularity?.downloads ?? 0).toBeGreaterThan(100_000);
   });
 
   it('does not rank the best-known model last', () => {
