@@ -1500,6 +1500,95 @@ describe('pinned safetensors headers verify logical parameter totals', () => {
     ).toThrowError(/packed tensors without a validated logical parameter count/);
   });
 
+  // Exact shapes/dtypes from all three shards at:
+  // https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/tree/a11f36bebf709121056b1dbcc943d1c6afbe494d
+  // Expert scales are vectors/tensors; attention and shared-expert scales are scalar [].
+  const MISTRAL_MIXED_SCALE_HEADERS = {
+    'language_model.model.layers.0.mlp.experts.down_proj': {
+      dtype: 'F8_E4M3',
+      shape: [128, 4096, 2048],
+    },
+    'language_model.model.layers.0.mlp.experts.down_proj_scale_inv': {
+      dtype: 'BF16',
+      shape: [128, 1, 1],
+    },
+    'language_model.model.layers.0.mlp.experts.down_proj_activation_scale': {
+      dtype: 'BF16',
+      shape: [128],
+    },
+    'language_model.model.layers.0.self_attn.q_a_proj.weight': {
+      dtype: 'F8_E4M3',
+      shape: [1024, 4096],
+    },
+    'language_model.model.layers.0.self_attn.q_a_proj.weight_scale_inv': {
+      dtype: 'BF16',
+      shape: [],
+    },
+    'language_model.model.layers.0.self_attn.q_a_proj.activation_scale': {
+      dtype: 'BF16',
+      shape: [],
+    },
+  };
+  const MISTRAL_FIXTURE_LOGICAL = 128 * 4096 * 2048 + 1024 * 4096;
+
+  it.each([0, 256, 258])(
+    'derives identical logical parameters with %i evidenced metadata elements in the summary',
+    (metadataElements) => {
+      expect(
+        deriveHeaderTotalParams(
+          'mistralai/Mistral-Small-4-119B-2603',
+          MISTRAL_MIXED_SCALE_HEADERS,
+          MISTRAL_FIXTURE_LOGICAL + metadataElements
+        )
+      ).toBe(MISTRAL_FIXTURE_LOGICAL);
+    }
+  );
+
+  it.each([1, 2, 128, 255, 257, 259])(
+    'rejects an unexplained partial scale total of %i metadata elements',
+    (metadataElements) => {
+      expect(() =>
+        deriveHeaderTotalParams(
+          'mistralai/Mistral-Small-4-119B-2603',
+          MISTRAL_MIXED_SCALE_HEADERS,
+          MISTRAL_FIXTURE_LOGICAL + metadataElements
+        )
+      ).toThrowError(/summary convention changed/);
+    }
+  );
+
+  it('does not omit ordinary scalar parameters or one-element vector scales', () => {
+    const tensors = {
+      ...MISTRAL_MIXED_SCALE_HEADERS,
+      'model.scalar_norm.weight': { dtype: 'BF16', shape: [] },
+      'model.vector.weight_scale_inv': { dtype: 'BF16', shape: [1] },
+      'model.scalar_f8.activation_scale': { dtype: 'F8_E4M3', shape: [] },
+    };
+    expect(deriveHeaderTotalParams('example/mixed', tensors, MISTRAL_FIXTURE_LOGICAL + 259)).toBe(
+      MISTRAL_FIXTURE_LOGICAL + 2
+    );
+    expect(() =>
+      deriveHeaderTotalParams('example/mixed', tensors, MISTRAL_FIXTURE_LOGICAL + 258)
+    ).toThrowError(/summary convention changed/);
+    expect(() =>
+      deriveHeaderTotalParams('example/mixed', tensors, MISTRAL_FIXTURE_LOGICAL + 257)
+    ).toThrowError(/summary convention changed/);
+  });
+
+  it('does not extend the scalar-scale summary convention to packed checkpoints', () => {
+    expect(() =>
+      deriveHeaderTotalParams(
+        'example/packed',
+        {
+          ...MISTRAL_MIXED_SCALE_HEADERS,
+          'model.experts.blocks': { dtype: 'U8', shape: [32] },
+        },
+        MISTRAL_FIXTURE_LOGICAL + 256 + 32,
+        64
+      )
+    ).toThrowError(/summary convention changed/);
+  });
+
   it('refuses a third same-revision API figure while naming pinned and API figures', () => {
     expect(() =>
       deriveHeaderTotalParams('MiniMaxAI/MiniMax-M2.7', PINNED_FP8_HEADERS, STORED_TOTAL + 1)
