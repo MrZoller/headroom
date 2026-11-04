@@ -1059,31 +1059,36 @@ describe('generated model catalog', () => {
   });
 
   /**
-   * Mirrored seeds carry the canonical repo's traffic, not the mirror's. NousResearch's Llama
-   * 3.1 70B has ~4.8K downloads against Meta's ~1.24M, which sorted the best-known model in the
-   * catalog to last place.
+   * Mirrored seeds carry the canonical repo's traffic, not the mirror's. Provenance proves
+   * which repo supplied the count; its magnitude cannot. Downloads cover a rolling 30-day
+   * window, so even a canonical repo can legitimately fall below any fixed popularity floor.
+   * The old 100K assertion blocked every refresh on 5–19 October 2026 as Llama 3.1 70B aged.
    */
   it.each([
+    ['unsloth/Llama-3.2-3B-Instruct', 'meta-llama/Llama-3.2-3B-Instruct'],
     ['NousResearch/Meta-Llama-3.1-70B-Instruct', 'meta-llama/Llama-3.1-70B-Instruct'],
     ['NousResearch/Meta-Llama-3.1-8B-Instruct', 'meta-llama/Llama-3.1-8B-Instruct'],
+    ['unsloth/Llama-3.3-70B-Instruct', 'meta-llama/Llama-3.3-70B-Instruct'],
+    ['unsloth/gemma-3-4b-it', 'google/gemma-3-4b-it'],
     ['unsloth/gemma-3-12b-it', 'google/gemma-3-12b-it'],
     ['unsloth/gemma-3-27b-it', 'google/gemma-3-27b-it'],
   ])('%s takes its popularity from the canonical repo', (id, canonical) => {
     const model = getModel(id);
     expect(model.popularity?.measuredOn).toBe(canonical);
-    // The floor only has to separate canonical traffic (hundreds of thousands) from mirror
-    // traffic (tens of thousands). Downloads are a rolling 30-day window, so canonical counts
-    // decay as a model ages — Gemma 3's fell under the old 500K floor within five weeks of
-    // seeding.
-    expect(model.popularity?.downloads ?? 0).toBeGreaterThan(100_000);
   });
 
-  it('does not rank the best-known model last', () => {
-    const ranked = modelsByPopularity();
-    const llama70 = ranked.findIndex((m) => m.id.endsWith('Meta-Llama-3.1-70B-Instruct'));
-    expect(llama70).toBeGreaterThanOrEqual(0);
-    expect(llama70).toBeLessThan(ranked.length - 1);
-  });
+  it.each(MODELS)(
+    '$id carries valid popularity counts without assuming a minimum rank',
+    (model) => {
+      // Do not coalesce a missing catalog field to zero just to make this assertion pass.
+      // A stored zero is valid. Ranking is tested by count above, not historical fame.
+      for (const field of ['downloads', 'likes'] as const) {
+        const count = model.popularity?.[field];
+        expect(Number.isSafeInteger(count), `${model.id} ${field}`).toBe(true);
+        expect(count, `${model.id} ${field}`).toBeGreaterThanOrEqual(0);
+      }
+    }
+  );
 
   /**
    * Sliding-window metadata has to be complete or absent, never partial. A short `layer_types`

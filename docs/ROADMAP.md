@@ -2296,10 +2296,25 @@ ceiling)` keeps an over-budget stack on screen, which is right and stays. What i
   derives one logical total: BF16/F32 tensors ending in the evidenced `weight_scale_inv`,
   `activation_scale`, `_scale_inv`, or `_activation_scale` spellings are quantization metadata,
   while ordinary BF16/F32 state remains a parameter. The API may equal the exact stored-element
-  total or that exact logical total — both conventions are proved by the same headers and produce
-  the same catalog row — but any third figure stops publication. Header ranges remain mandatory:
+  total or that exact logical total. A third exact convention was verified on 4 November 2026:
+  Mistral Small 4's unchanged pinned headers contain 18,432 non-scalar expert scale elements and
+  576 scalar scale elements, and the API now includes only the former. For unpacked checkpoints,
+  the generator also accepts stored elements minus scalar BF16/F32 quantization metadata, proved
+  from the scale suffix, dtype and empty shape together. A one-element vector is not a scalar,
+  ordinary scalar parameters are never removed, and arbitrary partial scale totals still fail.
+  All accepted conventions produce the same logical catalog row. Header ranges remain mandatory:
   a server that answers `200` rather than `206` is refused so this proof can never download a full
   shard by accident.
+
+- **Popularity provenance is an identity, not a download floor.** The 100K canonical-download
+  assertion blocked the 5, 12 and 19 October 2026 refreshes when Llama 3.1 70B's rolling 30-day
+  downloads fell below it. Lowering the floor again would merely schedule the next failure.
+  Catalog tests now check the canonical `measuredOn` identity for all seven mirrors and require
+  non-negative safe-integer counts, with no promise about any named model's rank. The generator
+  still refuses a canonical endpoint that resolves to the wrong repository or omits downloads.
+  Ranking is tested against the counts themselves. See the
+  [4 November coverage assessment](CATALOG-REVIEW-2026-11-04.md) for the separate missing-model work;
+  fixing refresh does not add new architectures.
 
 - **Multi-Token Prediction modules inflate reported totals** (DeepSeek V3/R1 by ~13B, GLM-4.5-Air
   by ~4B) and inference never loads them. Detected via `num_nextn_predict_layers` and _refused_,

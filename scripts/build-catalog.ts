@@ -2008,6 +2008,7 @@ export function deriveHeaderTotalParams(
 ): number {
   let logical = 0;
   let stored = 0;
+  let scalarScaleMetadata = 0;
   let sawPacked = false;
 
   for (const [name, tensor] of Object.entries(tensors)) {
@@ -2031,6 +2032,9 @@ export function deriveHeaderTotalParams(
       (dtype === 'F32' || dtype === 'BF16') &&
       FP8_SCALE_SUFFIXES.some((suffix) => name.endsWith(suffix))
     ) {
+      // Empty shapes are scalars, not one-element vectors. The Hub currently omits these
+      // scales from Mistral Small 4 while retaining its non-scalar expert scales.
+      if (tensor.shape?.length === 0) scalarScaleMetadata += elements;
       continue;
     }
 
@@ -2052,12 +2056,15 @@ export function deriveHeaderTotalParams(
     logical += validatedMxfp4ExpertParams;
   }
 
-  // Hub has published both exact conventions for otherwise identical FP8 layouts: MiniMax and
-  // Kimi omit scale metadata today, while DeepSeek includes it; Mistral Small 4 even omits scalar
-  // scales from its dtype breakdown while retaining them in `total`. Both candidates are proved by
-  // the pinned headers, and either produces this same logical count. Any third figure is mutable
-  // metadata with no content-addressed explanation and must stop publication.
-  if (apiSummaryTotal !== logical && apiSummaryTotal !== stored) {
+  // Hub has published exact logical and stored totals for otherwise identical FP8 layouts.
+  // Mistral Small 4 adds a third evidenced convention: the pinned a11f36b headers store 576
+  // scalar BF16 scales and 18,432 non-scalar expert scales, but the November 2026 summary
+  // includes only the latter. Prove that precise selection from shape, dtype AND scale suffix;
+  // never omit ordinary scalar parameters, treat [1] as [], or accept arbitrary scale subsets.
+  // This extra convention does not apply to packed checkpoints, whose proof is separate.
+  const omitsScalarScaleMetadata =
+    !sawPacked && scalarScaleMetadata > 0 && apiSummaryTotal === stored - scalarScaleMetadata;
+  if (apiSummaryTotal !== logical && apiSummaryTotal !== stored && !omitsScalarScaleMetadata) {
     throw new DerivationError(
       `${id}: pinned headers prove ${logical.toLocaleString('en-US')} logical parameters, but the ` +
         `API summary reports ${apiSummaryTotal.toLocaleString('en-US')}. The summary convention ` +
